@@ -1,3 +1,48 @@
+# =====| User-added |=====
+
+# Data (PHI risk: keep out of Git entirely)
+data/
+*.dcm
+*.csv
+*.parquet
+
+# Model artifacts
+*.ckpt
+*.pt
+*.pth
+*.onnx
+*.safetensors
+checkpoints/
+models/weights/
+
+# Experiment tracking
+mlruns/
+wandb/
+outputs/
+lightning_logs/
+
+# Secrets and environment
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Notebooks
+.ipynb_checkpoints/
+
+# Tooling and OS
+.venv/
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+.DS_Store
+.idea/
+.vscode/
+
+# ========================
+
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
