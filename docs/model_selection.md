@@ -1,71 +1,37 @@
-# Model Selection
+# Model Selection (#13)
 
-Issue: #13 Select and Register Best Model
+## Selected model
 
-## Decision
+A multi-stage heatmap pipeline for digitizing EKG images, used with its pretrained weights:
 
-We use the **5th place solution** from the Kaggle [PhysioNet - Digitization of ECG Images](https://www.kaggle.com/competitions/physionet-ecg-image-digitization) competition, by dangnh0611. We take its **final submission configuration unchanged** and do not train our own model.
+1. Correct the image's rotation (EfficientViT-B2)
+2. Detect grid keypoints and warp the image to a standard layout (ConvNeXt UNet, 5 folds)
+3. Predict each lead's waveform (ensemble of 2 dual-encoder UNets)
+4. Re-check leads with large amplitudes (ConvNeXt UNet)
 
-- Code: [dangnh0611/kaggle_ecg_digitization](https://github.com/dangnh0611/kaggle_ecg_digitization) (MIT), commit `8358d5b`
-- Weights and configs: [kaggle.com/datasets/dangnh0611/ecg-checkpoints](https://www.kaggle.com/datasets/dangnh0611/ecg-checkpoints)
-- Inference notebook: [kaggle.com/code/dangnh0611/5th-place-solution](https://www.kaggle.com/code/dangnh0611/5th-place-solution)
-- Write-up: [5th place solution: Multi-stages Heatmap-based Modeling](https://www.kaggle.com/competitions/physionet-ecg-image-digitization/writeups/5th-place-solution)
+## Why
 
-### Pipeline
+- Highest score of the pretrained options available: **22.63 dB SNR** on the competition's hidden test set. The next best scored 22.25 dB.
+- Weights, configs and inference code are all available, so we don't need to train anything.
+- We use it unchanged, so the score above still applies. Fallback if it's too slow: the single-waveform-model version (22.35 dB).
 
-| Stage | Model | Input size |
-|---|---|---|
-| 1. Orientation correction | EfficientViT-B2 (predicts 0/90/180/270° rotation and the exact angle) | 512×512 |
-| 2. Keypoint detection and image registration | UNet with ConvNeXt-small encoder, 5-fold ensemble | 2048×2048 |
-| 3. Waveform estimation | 0.7 × CoaT-Lite-Medium+VGG19 and 0.3 × ConvNeXt-Large+VGG19 (dual encoder) | 1024×1024 |
-| 4. Refinement for large amplitudes | "TALL" ConvNeXt-small, for signals near ±3.2 mV | 1024×512 |
+Not chosen: the other public solutions scored lower or have no weights. Training our own was out of scope.
 
-## Candidates considered
+## Test evaluation
 
-Only solutions with public code and trained weights were considered. The 1st–3rd place teams have not published code.
+Run once on a held-out test set and don't tune afterwards. Don't use the competition train set, because the model was trained on it.
 
-| Candidate | Private LB SNR (dB) | Code | Weights | Inference code | Decision |
-|---|---|---|---|---|---|
-| **5th place, full ensemble** (dangnh0611) | **22.63** | ✅ MIT | ✅ | ✅ notebook + `submit.py` | **Selected** |
-| 5th place, best single waveform model | 22.35 | ✅ | ✅ | needs config changes | Fallback if the ensemble is too slow to deploy |
-| 6th place (GWwangshuo) | 22.25 (best single model) | ✅ (no license) | ✅ 0.7 GB | ✅ notebook | Rejected: lower score; stages 0–1 come from a separate public notebook |
-| 4th place (uchiyama33) | n/a | ✅ (no license) | ❌ | ❌ | Rejected: we would have to train it ourselves |
-| Train our own (#5) | n/a | n/a | n/a | n/a | Rejected: the goal is to skip training and focus on deployment |
-
-Scores are from the authors' READMEs, on Kaggle's hidden private test set. That set was not used for training, so it is a fair comparison.
-
-## Rationale
-
-1. **It has the highest score among usable solutions.** At 22.63 dB, it beats the best 6th-place model by about 0.4 dB.
-2. **We use it exactly as the authors submitted it.** Any change (fewer folds, dropping a model) would give a pipeline with no verified score. The 22.35 dB single-model variant is the fallback if speed or cost becomes a problem in deployment.
-3. **It is the most complete package.** It has trained weights, configs, a Docker environment, inference code, ablation studies and data-processing docs, so it is the least work to integrate.
-4. **It is known to run on a single GPU.** The submission ran inside Kaggle's GPU notebook limits.
-
-## Known limitations
-
-- **It needs a GPU.** It needs CUDA (PyTorch 2.6, CUDA 12.6 Docker image). It will not run in a practical way on our laptops (e.g. an M3 Mac with 16 GB and no CUDA). Run evaluation on Kaggle Notebooks or a cloud GPU.
-- **Checkpoints are large.** The checkpoint dataset is about 19 GB. Only the subset used in the final submission needs to be downloaded.
-- **Output range.** The main models cover ±3.2 mV. Larger amplitudes rely on the TALL refinement model.
-- **It is fitted to the competition's images.** It expects 12 leads, a 10 s layout, and the competition's image types. Performance on other printers or phone photos is unknown until we test it (#14, #11).
-
-## Test evaluation (held-out)
-
-> **Status: blocked.** This needs a held-out test set and the official metric.
-
-- **Test set:** Do **not** use the Kaggle `train` set. The final models were trained on all of it (`ALLDATA` in the checkpoint names), so scores on it would be inflated. Use the external datasets from #14, which the model has never seen.
-- **Metric:** Use the official competition SNR: ±0.2 s time shift, free vertical offset, signal and noise power summed over all 12 leads per image, averaged in linear scale, then converted to dB. The `scripts/evaluate.py` from #7 must match this before it is used here.
-- **Protocol:** Run the selected pipeline **once** on the test set and record the result below. Do not tune anything afterwards.
-
-| Test set | Records | SNR (dB) | MAE (mV) | Date | Run link |
-|---|---|---|---|---|---|
-| _pending (#14)_ | | | | | |
+| Test set | SNR (dB) | MAE (mV) | Date |
+|---|---|---|---|
+| TODO (#14 data) | | | |
 
 ## Registration
 
-> **Status: blocked on #12** (model registry).
+TODO once the registry (#12) is set up. Register as `production` with:
+- the checkpoints and config `.yaml` for each stage, from upstream commit `8358d5b`
+- metrics: 22.63 dB competition score and the test result above
 
-Register as the `production` alias. Include:
-- the weights for every stage, with their Kaggle dataset version
-- the upstream commit `8358d5b` and every stage config `.yaml`
-- the Kaggle private LB score (22.63 dB) and the held-out test score from the table above
-- a link to this document
+## Sources
+
+- Code: https://github.com/dangnh0611/kaggle_ecg_digitization
+- Weights: https://www.kaggle.com/datasets/dangnh0611/ecg-checkpoints
