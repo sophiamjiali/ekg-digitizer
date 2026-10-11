@@ -1,103 +1,80 @@
 # ==============================================================================
 # File Name : metrics.py
-# Purpose   : Signal reconstruction metrics (SNR, MAE) and alignment
+# Purpose   : Competition SNR metric, MAE, and signal alignment
 # ==============================================================================
 """Metrics for comparing digitized EKG signals against reference signals.
 
-All metrics operate on 1-D arrays for a single lead. Non-finite values
-(NaN, +/-inf) mark missing samples, following the PhysioNet Challenge 2024
-evaluation code. See ``docs/metrics.md`` for definitions.
+Follows the official metric of the Kaggle "PhysioNet - Digitization of ECG
+Images" competition. See ``docs/metrics.md`` for definitions.
 """
 
 from __future__ import annotations
 
 import numpy as np
 
-# Defaults from the PhysioNet Challenge 2024 evaluation code.
-MAX_SHIFT_S = 0.5
-MAX_OFFSET_MV = 1.0
-
-
-def _pad_to_same_length(x_ref: np.ndarray, x_est: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    """Pad the shorter signal with NaNs so both signals have the same length."""
-    x_ref = np.asarray(x_ref, dtype=float).ravel()
-    x_est = np.asarray(x_est, dtype=float).ravel()
-    n = max(x_ref.size, x_est.size)
-    x_ref = np.pad(x_ref, (0, n - x_ref.size), constant_values=np.nan)
-    x_est = np.pad(x_est, (0, n - x_est.size), constant_values=np.nan)
-    return x_ref, x_est
-
-
-def _shift(x: np.ndarray, lag: int) -> np.ndarray:
-    """Shift ``x`` right by ``lag`` samples (left if negative), filling with NaN."""
-    out = np.full_like(x, np.nan)
-    if lag >= 0:
-        out[lag:] = x[: x.size - lag]
-    else:
-        out[:lag] = x[-lag:]
-    return out
+LEADS = ["I", "II", "III", "aVR", "aVL", "aVF", "V1", "V2", "V3", "V4", "V5", "V6"]
+MAX_TIME_SHIFT_S = 0.2
+PERFECT_SCORE = 1e6  # cap on the linear signal/noise ratio of one image
+MIN_SCORE_DB = -384
 
 
 def align(x_ref: np.ndarray, x_est: np.ndarray, fs: float) -> np.ndarray:
     """Align ``x_est`` to ``x_ref`` with a time shift and a vertical offset.
 
-    The time shift is the lag within ``+/- MAX_SHIFT_S`` that maximizes the
-    Pearson correlation over the overlapping samples. The vertical offset is
-    the mean residual after shifting. If the offset exceeds ``MAX_OFFSET_MV``,
-    the estimate is returned unaligned.
+    The time shift is the lag within ``+/- MAX_TIME_SHIFT_S`` that maximizes the
+    cross-correlation of the mean-centred signals (smallest lag on ties). The
+    vertical offset is the least-squares offset over the overlapping samples.
+    Samples shifted out of range become NaN.
     """
-    x_ref, x_est = _pad_to_same_length(x_ref, x_est)
+    x_ref = np.asarray(x_ref, dtype=float)
+    x_est = np.asarray(x_est, dtype=float)
+    n_ref, n_est = x_ref.size, x_est.size
 
-    max_lag = int(round(MAX_SHIFT_S * fs))
-    best_lag, best_corr = None, -np.inf
-    for lag in range(-max_lag, max_lag + 1):
-        shifted = _shift(x_est, lag)
-        idx = np.isfinite(x_ref) & np.isfinite(shifted)
-        if idx.sum() < 2:
-            continue
-        a = x_ref[idx] - x_ref[idx].mean()
-        b = shifted[idx] - shifted[idx].mean()
-        norm = np.linalg.norm(a) * np.linalg.norm(b)
-        if norm == 0:
-            continue
-        corr = float(np.dot(a, b)) / norm
-        if corr > best_corr:
-            best_lag, best_corr = lag, corr
+    correlation = np.correlate(x_ref - x_ref.mean(), x_est - x_est.mean(), mode="full")
+    lags = np.arange(-(n_est - 1), n_ref)
+    max_shift = int(fs * MAX_TIME_SHIFT_S)
+    valid = np.abs(lags) <= max_shift
+    best = np.flatnonzero(valid & (correlation == correlation[valid].max()))
+    lag = lags[best[np.argmin(np.abs(lags[best]))]]
 
-    if best_lag is None:
-        return x_est
-
-    shifted = _shift(x_est, best_lag)
-    idx = np.isfinite(x_ref) & np.isfinite(shifted)
-    offset = float(np.mean(x_ref[idx] - shifted[idx]))
-    if abs(offset) > MAX_OFFSET_MV:
-        return x_est
-    return shifted + offset
+    aligned = np.concatenate(
+        (
+            np.full(max(lag, 0), np.nan),
+            x_est[max(-lag, 0) : min(n_ref - lag, n_est)],
+            np.full(max(n_ref - n_est - lag, 0), np.nan),
+        )
+    )
+    overlap = np.isfinite(aligned)
+    if overlap.any():
+        aligned -= np.mean(aligned[overlap] - x_ref[overlap])
+    return aligned
 
 
-def snr(x_ref: np.ndarray, x_est: np.ndarray) -> float:
-    """Signal-to-noise ratio in dB for one lead.
+def power(x_ref: np.ndarray, x_est: np.ndarray) -> tuple[float, float]:
+    """Return ``(signal_power, noise_power)`` as sums of squares.
 
-    ``10 * log10(sum(x_ref**2) / sum((x_ref - x_est)**2))`` over samples finite
-    in both signals, scaled by the fraction of reference samples the estimate
-    covers. Returns 0 when the estimate covers no samples, and NaN for a
-    perfect reconstruction or an all-zero reference.
+    Non-finite values in ``x_est`` (e.g. from alignment) count as 0.
     """
-    x_ref, x_est = _pad_to_same_length(x_ref, x_est)
-    idx_ref = np.isfinite(x_ref)
-    idx = idx_ref & np.isfinite(x_est)
-    if idx_ref.any() and not idx.any():
+    x_est = np.where(np.isfinite(x_est), x_est, 0.0)
+    return float(np.sum(x_ref**2)), float(np.sum((x_ref - x_est) ** 2))
+
+
+def snr_ratio(signal: float, noise: float) -> float:
+    """Linear signal/noise ratio, capped at ``PERFECT_SCORE``."""
+    if noise == 0:
+        return PERFECT_SCORE
+    if signal == 0:
         return 0.0
+    return min(signal / noise, PERFECT_SCORE)
 
-    p_signal = np.sum(x_ref[idx] ** 2)
-    p_noise = np.sum((x_ref[idx] - x_est[idx]) ** 2)
-    if not (p_signal > 0 and p_noise > 0):
-        return float("nan")
-    return float(10 * np.log10(p_signal / p_noise) * idx.sum() / idx_ref.sum())
+
+def to_db(ratios: list[float]) -> float:
+    """Average linear ratios across images, then convert to dB."""
+    with np.errstate(divide="ignore"):
+        return max(float(10 * np.log10(np.mean(ratios))), MIN_SCORE_DB)
 
 
 def mae(x_ref: np.ndarray, x_est: np.ndarray) -> float:
-    """Mean absolute error in mV over samples finite in both signals."""
-    x_ref, x_est = _pad_to_same_length(x_ref, x_est)
-    idx = np.isfinite(x_ref) & np.isfinite(x_est)
-    return float(np.mean(np.abs(x_ref[idx] - x_est[idx]))) if idx.any() else float("nan")
+    """Mean absolute error in mV. Non-finite values in ``x_est`` count as 0."""
+    x_est = np.where(np.isfinite(x_est), x_est, 0.0)
+    return float(np.mean(np.abs(x_ref - x_est)))

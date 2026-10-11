@@ -1,4 +1,4 @@
-from ekg_digitizer.evaluation.evaluate import evaluate, load_split
-from ekg_digitizer.evaluation.metrics import align, mae, snr
+from ekg_digitizer.evaluation.evaluate import evaluate, load_split, score_record
+from ekg_digitizer.evaluation.metrics import align, mae
 
-__all__ = ["align", "evaluate", "load_split", "mae", "snr"]
+__all__ = ["align", "evaluate", "load_split", "mae", "score_record"]

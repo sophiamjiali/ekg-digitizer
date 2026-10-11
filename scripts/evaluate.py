@@ -5,7 +5,7 @@
 """Report SNR and MAE of predicted signals on a validation split.
 
 Example:
-    python scripts/evaluate.py --ref-dir data/val/signals --pred-dir outputs/val --fs 500
+    python scripts/evaluate.py --ref-dir data/val/signals --pred-dir outputs/val
 """
 
 import argparse
@@ -18,10 +18,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--ref-dir", type=Path, required=True, help="Directory of reference record CSVs")
     parser.add_argument("--pred-dir", type=Path, required=True, help="Directory of predicted record CSVs")
-    parser.add_argument("--fs", type=float, required=True, help="Sampling frequency in Hz")
     args = parser.parse_args()
 
-    scores = evaluate(load_split(args.ref_dir), load_split(args.pred_dir), fs=args.fs)
+    scores = evaluate(load_split(args.ref_dir), load_split(args.pred_dir))
     print(f"Records  : {scores['num_records']}")
     print(f"SNR (dB) : {scores['snr']:.3f}")
     print(f"MAE (mV) : {scores['mae']:.4f}")

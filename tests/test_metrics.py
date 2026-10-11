@@ -1,59 +1,76 @@
 import numpy as np
 import pytest
 
-from ekg_digitizer.evaluation import align, evaluate, load_split, mae, snr
+from ekg_digitizer.evaluation import align, evaluate, load_split, mae, score_record
 
-FS = 500
-
-
-@pytest.fixture
-def ecg_like():
-    t = np.arange(0, 2.5, 1 / FS)
-    return np.sin(2 * np.pi * 1.2 * t) + 0.3 * np.sin(2 * np.pi * 7 * t)
-
-
-def test_snr_matches_definition(ecg_like):
-    noise = 0.1 * np.random.default_rng(0).standard_normal(ecg_like.size)
-    expected = 10 * np.log10(np.sum(ecg_like**2) / np.sum(noise**2))
-    assert snr(ecg_like, ecg_like + noise) == pytest.approx(expected)
+# Example record and expected scores from the official competition metric's doctests.
+OFFICIAL_IDS = (
+    [f"{i}_{lead}" for lead in ["I", "III", "aVR", "aVL", "aVF", "V1", "V2", "V3", "V4", "V5", "V6"] for i in range(3)]
+    + [f"{i}_II" for i in range(12)]
+)
+OFFICIAL_VALUES = [
+    0.1, 0.3, 0.4, 0.6, 0.6, 0.4, 0.2, 0.3, 0.4, 0.5, 0.2, 0.7, 0.2, 0.3, 0.4, 0.8, 0.6, 0.7,
+    0.2, 0.3, -0.1, 0.5, 0.6, 0.7, 0.2, 0.9, 0.4, 0.5, 0.6, 0.7, 0.1, 0.3, 0.4,
+    0.6, 0.6, 0.4, 0.2, 0.3, 0.4, 0.5, 0.2, 0.7, 0.2, 0.3, 0.4,
+]  # fmt: skip
 
 
-def test_snr_is_zero_for_empty_prediction(ecg_like):
-    assert snr(ecg_like, np.full_like(ecg_like, np.nan)) == 0.0
+def to_record(values):
+    record = {}
+    for row_id, value in zip(OFFICIAL_IDS, values):
+        record.setdefault(row_id.split("_")[1], []).append(value)
+    return {lead: np.array(v) for lead, v in record.items()}
 
 
-def test_snr_penalizes_missing_samples(ecg_like):
-    est = ecg_like + 0.1
-    partial = est.copy()
-    partial[: ecg_like.size // 2] = np.nan
-    assert snr(ecg_like, partial) < snr(ecg_like, est)
+@pytest.mark.parametrize(
+    "edits, expected",
+    [({}, 60.0), ({0: 0.9}, 13.6291), ({0: 0.9, 4: 0.3}, 13.0576)],
+)
+def test_snr_matches_official_examples(edits, expected):
+    reference = {"r": to_record(OFFICIAL_VALUES)}
+    values = list(OFFICIAL_VALUES)
+    for i, v in edits.items():
+        values[i] = v
+    assert evaluate(reference, {"r": to_record(values)})["snr"] == pytest.approx(expected, abs=1e-4)
 
 
-def test_mae(ecg_like):
-    assert mae(ecg_like, ecg_like + 0.2) == pytest.approx(0.2)
+def test_zero_reference_scores_minimum():
+    zeros = to_record([0.0] * len(OFFICIAL_VALUES))
+    assert evaluate({"r": zeros}, {"r": to_record(OFFICIAL_VALUES)})["snr"] == -384
 
 
-def test_align_removes_shift_and_offset(ecg_like):
-    est = np.roll(ecg_like, 25) + 0.4
-    assert snr(ecg_like, align(ecg_like, est, FS)) > snr(ecg_like, est) + 20
+@pytest.mark.parametrize(
+    "ref, est, fs, expected",
+    [
+        ([0, 1, 2, 1, 0], [10, 11, 12, 11, 10], 100, [0, 1, 2, 1, 0]),  # vertical offset removed
+        ([0, 0, 1, 2, 1, 0, 0], [1, 2, 1, 0, 0, 0, 0], 100, [np.nan, np.nan, 1, 2, 1, 0, 0]),  # time shift corrected
+        ([0, 0, 0, 0, 1, 2, 1], [1, 2, 1, 0, 0, 0, 0], 50, [np.nan] * 4 + [1, 2, 1]),  # shift limited to 0.2 * fs
+    ],
+)
+def test_align_matches_official_examples(ref, est, fs, expected):
+    np.testing.assert_allclose(align(np.array(ref, float), np.array(est, float), fs), expected, atol=1e-9)
 
 
-def test_align_ignores_large_offset(ecg_like):
-    est = ecg_like + 5.0
-    np.testing.assert_array_equal(align(ecg_like, est, FS), est)
+def test_missing_leads_and_records_score_as_zeros():
+    reference = to_record(OFFICIAL_VALUES)
+    zeros = {lead: np.zeros_like(x) for lead, x in reference.items()}
+    assert score_record(reference, {}) == score_record(reference, zeros)
+    assert evaluate({"r": reference}, {})["num_records"] == 1
 
 
-def test_evaluate_on_split(tmp_path, ecg_like):
+def test_mae():
+    assert mae(np.array([1.0, 2.0]), np.array([1.5, np.nan])) == pytest.approx(1.25)
+
+
+def test_evaluate_on_split(tmp_path):
+    t = np.arange(0, 10, 1 / 100)
+    ecg = np.sin(2 * np.pi * 1.2 * t)
     for name in ("ref", "pred"):
         (tmp_path / name).mkdir()
-    for record in ("r1", "r2"):
-        np.savetxt(tmp_path / "ref" / f"{record}.csv", np.column_stack([ecg_like, -ecg_like]), delimiter=",", header="I,II", comments="")
-    noise = 0.1 * np.random.default_rng(0).standard_normal((ecg_like.size, 2))
-    np.savetxt(tmp_path / "pred" / "r1.csv", np.column_stack([ecg_like, -ecg_like]) + noise, delimiter=",", header="I,II", comments="")
+    noise = 0.1 * np.random.default_rng(0).standard_normal(t.size)
+    np.savetxt(tmp_path / "ref" / "r1.csv", np.column_stack([ecg, ecg]), delimiter=",", header="I,II", comments="")
+    np.savetxt(tmp_path / "pred" / "r1.csv", np.column_stack([ecg + noise, np.roll(ecg, 5) + 0.3]), delimiter=",", header="I,II", comments="")
 
-    references, predictions = load_split(tmp_path / "ref"), load_split(tmp_path / "pred")
-    r1_only = evaluate({"r1": references["r1"]}, predictions, fs=FS)
-    scores = evaluate(references, predictions, fs=FS)
-    assert scores["num_records"] == 2
-    assert 10 < r1_only["snr"] < 30
-    assert scores["snr"] == pytest.approx(r1_only["snr"] / 2)  # missing r2 scores 0 dB
+    scores = evaluate(load_split(tmp_path / "ref"), load_split(tmp_path / "pred"))
+    assert scores["num_records"] == 1
+    assert 15 < scores["snr"] < 30
