@@ -25,12 +25,12 @@ class EKGDataset(Dataset):
     """Defines a dataset of EKG images for model training and inference."""
 
     def __init__(self, 
-                 images, 
-                 data_dir, 
-                 config: Config,
-                 transform = None, 
-                 is_train: bool = True, 
-                 use_mixup: bool = False):
+                 images  : pd.DataFrame,
+                 data_dir: str,
+                 config  : Config,
+                 transform = None,
+                 is_train : bool     = True,
+                 use_mixup: bool     = False):
         
         self.images      = images.reset_index(drop = True)
         self.data_dir    = data_dir
@@ -77,8 +77,11 @@ class EKGDataset(Dataset):
                 return cv2.cvtColor(img, code)
 
         # If the image was not found or could not be loaded, return zeroes
-        return np.ones((self.config.img_height, self.config.img_width, 
-                        self.config.img_channels), dtype = np.uint8) * 255
+        h = self.config.image_properties.img_height
+        w = self.config.image_properties.img_width
+        c = self.config.image_properties.img_channels
+
+        return np.ones((h, w, c), dtype = np.uint8) * 255
 
 
     def __getitem__(self, idx: int):
@@ -88,18 +91,25 @@ class EKGDataset(Dataset):
         base_id = row['id']
         image = self.load_image(base_id)
 
+        # Extract relevant configurations
+        base_fs = self.config.signal_properties.base_fs
+        lead_ii_duration = self.config.signal_properties.lead_ii_duration
+        other_duration = self.config.signal_properties.other_leads_duration
+        resize_height = self.config.image_properties.resize_height
+        resize_width = self.config.image_properties.resize_width
+
         if self.is_train:
             csv_path = os.path.join(self.data_dir, str(base_id), 
                                     f"{base_id}.csv")
             
             try:
-                signals_df = pd.read_csv(csv_path)
-                fs         = row.get('fs', self.config.base_fs)
+                signals = pd.read_csv(csv_path)
+                fs      = row.get('fs', base_fs)
 
                 # Extract the time-series signal data from each lead
                 all_signals = []
                 for lead in self.leads:
-                    signal = signals_df[lead].values
+                    signal = signals[lead].values
                     
                     # Handle NaN values
                     signal = pd.Series(signal).interpolate(
@@ -108,10 +118,8 @@ class EKGDataset(Dataset):
                     ).fillna(0).values
                     
                     # Extract the lead's expected length and resize it
-                    if lead == 'II':
-                        expected_l = int(fs * self.config.lead_ii_duration)
-                    else:
-                        expected_l = int(fs * self.config.other_leads_duration)
+                    if lead == 'II': expected_l = int(fs * lead_ii_duration)
+                    else           : expected_l = int(fs * other_duration)
                     
                     if len(signal) > expected_l:
                         signal = signal[:expected_l]
@@ -128,17 +136,16 @@ class EKGDataset(Dataset):
                 target_signals = np.stack(all_signals, axis = 0)
                 
             except Exception as e:
-                target_signals = np.zeros(
-                    (12, int(self.config.base_fs * self.config.lead_ii_duration)
-                ), dtype=np.float32)
+                target_signals = np.zeros((
+                    12, int(base_fs * lead_ii_duration)
+                ), dtype = np.float32)
             
             # Apply transformations if provided
             if self.transform:
-                transformed  = self.transform(image=image)
+                transformed  = self.transform(image = image)
                 image_tensor = transformed['image']
             else:
-                image_resized = cv2.resize(image, (self.config.resize_width, 
-                                                   self.config.resize_height))
+                image_resized = cv2.resize(image, (resize_width, resize_height))
                 image_tensor = torch.from_numpy(
                     image_resized.transpose(2, 0, 1)
                 ).float() / 255.0
@@ -146,14 +153,13 @@ class EKGDataset(Dataset):
             return image_tensor, torch.FloatTensor(target_signals), base_id
         
         else:
-            fs = row.get('fs', self.config.base_fs)
+            fs = row.get('fs', base_fs)
             
             if self.transform:
-                transformed  = self.transform(image=image)
+                transformed  = self.transform(image = image)
                 image_tensor = transformed['image']
             else:
-                image_resized = cv2.resize(image, (self.config.resize_width, 
-                                                   self.config.resize_height))
+                image_resized = cv2.resize(image, (resize_width, resize_height))
                 image_tensor = torch.from_numpy(
                     image_resized.transpose(2, 0, 1)
                 ).float() / 255.0

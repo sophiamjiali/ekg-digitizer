@@ -1,4 +1,37 @@
-# ==============================================================================
+#:=============================================================================
 # File Name : config.yaml
 # Purpose   : Defines hardware, training, image properties, and optimizations
-# ==============================================================================
+#:=============================================================================
+
+training:
+  batch_size : 16
+  epochs     : 35
+  lr         : 0.00015
+  min_lr     : 0.0000005
+  num_workers: 4
+
+optimization:
+  warmup_epochs  : 4
+  gradient_clip  : 0.5
+  use_amp        : True
+  label_smoothing: 0.01
+
+image_properties:
+  img_width    : 2200
+  img_height   : 1700
+  img_channels : 3
+  resize_width : 1024
+  resize_height: 768
+
+signal_properties:
+  base_fs             : 500
+  lead_ii_duration    : 10.0
+  other_leads_duration: 2.5
+
+augmentations:
+  use_tta  : True
+  tta_count: 5
+
+signal_processing:
+  use_peak_detection   : True
+  use_wavelet_denoising: False
