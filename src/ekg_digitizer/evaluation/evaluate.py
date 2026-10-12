@@ -64,7 +64,7 @@ def evaluate(references: dict[str, Record], predictions: dict[str, Record]) -> d
 def load_record(path: Path) -> Record:
     """Load a record CSV with a header row of lead names. Empty cells are dropped."""
     data = np.genfromtxt(path, delimiter=",", names=True, dtype=float, deletechars="")
-    return {name: (x := np.atleast_1d(data[name]))[np.isfinite(x)] for name in data.dtype.names}
+    return {name: (x := np.atleast_1d(data[name]))[np.isfinite(x)] for name in data.dtype.names} # type: ignore
 
 
 def load_split(directory: Path) -> dict[str, Record]:
