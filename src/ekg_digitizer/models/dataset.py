@@ -70,9 +70,9 @@ class EKGDataset(Dataset):
             if img is not None:
 
                 # Convert the colour space based on the input channels
-                if   img.ndim == 2: code = cv2.COLOR_GRAY2RGB
-                elif img.ndim == 4: code = cv2.COLOR_BGRA2RGB
-                else              : code = cv2.COLOR_BGR2RGB
+                if   img.ndim == 2    : code = cv2.COLOR_GRAY2RGB
+                elif img.shape[2] == 4: code = cv2.COLOR_BGRA2RGB
+                else                  : code = cv2.COLOR_BGR2RGB
 
                 return cv2.cvtColor(img, code)
 
@@ -109,17 +109,18 @@ class EKGDataset(Dataset):
                 # Extract the time-series signal data from each lead
                 all_signals = []
                 for lead in self.leads:
-                    signal = signals[lead].values
+                    signal = signals[lead].to_numpy(dtype = np.float64)
                     
                     # Handle NaN values
                     signal = pd.Series(signal).interpolate(
                         method          = 'linear', 
                         limit_direction = 'both'
-                    ).fillna(0).values
+                    ).fillna(0).to_numpy(dtype = np.float64)
                     
                     # Extract the lead's expected length and resize it
                     if lead == 'II': expected_l = int(fs * lead_ii_duration)
                     else           : expected_l = int(fs * other_duration)
+
                     
                     if len(signal) > expected_l:
                         signal = signal[:expected_l]
@@ -145,6 +146,11 @@ class EKGDataset(Dataset):
                 transformed  = self.transform(image = image)
                 image_tensor = transformed['image']
             else:
+
+                # Check if the file is missing before attempting resize
+                if image is None or image.size == 0: 
+                    raise ValueError(f"Invalid image for ID {base_id}")
+                
                 image_resized = cv2.resize(image, (resize_width, resize_height))
                 image_tensor = torch.from_numpy(
                     image_resized.transpose(2, 0, 1)
@@ -159,6 +165,11 @@ class EKGDataset(Dataset):
                 transformed  = self.transform(image = image)
                 image_tensor = transformed['image']
             else:
+
+                # Check if the file is missing before attempting resize
+                if image is None or image.size == 0: 
+                    raise ValueError(f"Invalid image for ID {base_id}")
+                
                 image_resized = cv2.resize(image, (resize_width, resize_height))
                 image_tensor = torch.from_numpy(
                     image_resized.transpose(2, 0, 1)
