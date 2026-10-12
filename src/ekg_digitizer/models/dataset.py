@@ -89,14 +89,14 @@ class EKGDataset(Dataset):
         # Load the image and standardize its colour-scheme
         row     = self.images.iloc[idx]
         base_id = row['id']
-        image = self.load_image(base_id)
+        image   = self.load_image(base_id)
 
         # Extract relevant configurations
-        base_fs = self.config.signal_properties.base_fs
+        base_fs          = self.config.signal_properties.base_fs
         lead_ii_duration = self.config.signal_properties.lead_ii_duration
-        other_duration = self.config.signal_properties.other_leads_duration
-        resize_height = self.config.image_properties.resize_height
-        resize_width = self.config.image_properties.resize_width
+        other_duration   = self.config.signal_properties.other_leads_duration
+        resize_height    = self.config.image_properties.resize_height
+        resize_width     = self.config.image_properties.resize_width
 
         if self.is_train:
             csv_path = os.path.join(self.data_dir, str(base_id), 
