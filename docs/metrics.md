@@ -31,7 +31,7 @@ This matches the official competition metric exactly. `tests/test_metrics.py` ch
 
 ## Usage
 
-Each record is a CSV with a header row of lead names and one column per lead. Empty cells are ignored, since leads other than II usually cover only 2.5 s. Reference and prediction files have the same name.
+Each record is a CSV with a header row of lead names and one column per lead. Empty cells are ignored, since leads other than II usually cover only 2.5 s. Reference and prediction files have the same name. Subfolders are searched, so the dataset's `train/<id>/<id>.csv` layout works directly.
 
 ```bash
 PYTHONPATH=src python scripts/evaluate.py --ref-dir data/val/signals --pred-dir outputs/val
