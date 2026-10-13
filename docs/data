@@ -1,0 +1,17 @@
+Download the dataset from [PhysioNet](https://www.kaggle.com/competitions/physionet-ecg-image-digitization/data) and place it in the `data/` directory:
+```
+data/
+├── train/
+│   ├── {sample_id}/
+│   │   ├── {sample_id}.csv      # Ground truth signals
+│   │   └── {sample_id}-{type}.png  # ECG images
+│   └── ...
+├── train.csv                     # Metadata
+└── train_folds.csv              # Cross-validation splits
+```
+
+The data is a subset of the Human Sleep Project dataset on the Brain Data Science Platform
+
+Licence: https://creativecommons.org/licenses/by/4.0/
+
+Size: 79.8 GB (85,752,982,968 bytes)
