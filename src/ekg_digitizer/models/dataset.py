@@ -120,8 +120,7 @@ class EKGDataset(Dataset):
 
         try:
             signals_df = pd.read_csv(csv_path)
-            targets = np.zeros((len(self.leads), max_len), dtype = np.float32)
-            mask = np.zeros_like(targets)
+            targets   = np.zeros((len(self.leads), max_len), dtype = np.float32)
 
             # Ingest and process each signal, standardizing their length
             for i, lead in enumerate(self.leads):
@@ -144,17 +143,16 @@ class EKGDataset(Dataset):
                 signal = self.signal_proc.denoise_signal(signal)
                 signal = self.signal_proc.remove_baseline_wander(signal, fs)
 
-                # Initialize a target and signal mask for loss masking
+                # Initialize the target for loss masking
                 targets[i, :expected_len] = signal
-                mask[i, :expected_len]    = 1.0
 
         except (FileNotFoundError, KeyError, pd.errors.ParserError) as e:
             raise RuntimeError(
                 f"Failed to load signals for ID {base_id}: {e!r}"
             ) from e
 
-        targets, mask = torch.from_numpy(targets), torch.from_numpy(mask)
+        targets = torch.from_numpy(targets)
 
-        return image_tensor, targets, mask, base_id
+        return image_tensor, targets, base_id
 
 # [END]
