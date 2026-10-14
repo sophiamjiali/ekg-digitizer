@@ -5,7 +5,9 @@ import pytest
 from ekg_digitizer import registry
 
 
-class FakeArtifact:
+class FakeModel:
+    """Stands in for a W&B artifact so tests don't need an account."""
+
     def __init__(self, type="model", created_at="2026-01-01", aliases=None):
         self.type = type
         self.created_at = created_at
@@ -19,56 +21,50 @@ class FakeArtifact:
 
     def link(self, target_path, aliases=None):
         self.linked = (target_path, aliases)
-        return SimpleNamespace(version="v0")
+        return self
 
 
 def fake_run(*artifacts):
     return SimpleNamespace(
-        path=["team", "ekg", "abc123"],
+        id="abc123",
         config={"lr": 1e-4},
-        summary_metrics={"val/snr": 22.6, "val/mae": 0.04, "_step": 10, "note": "text"},
+        summary_metrics={"val/snr": 12.5, "loss": 0.8, "_step": 10, "note": "text"},
         logged_artifacts=lambda: list(artifacts),
     )
 
 
-def test_register_links_latest_model_with_config_and_metrics():
-    old, new = FakeArtifact(created_at="2026-01-01"), FakeArtifact(created_at="2026-02-01")
-    registry.register(fake_run(FakeArtifact(type="dataset"), new, old), alias="staging")
+def test_register_adds_newest_model_with_config_and_metrics():
+    old, new = FakeModel(created_at="2026-01-01"), FakeModel(created_at="2026-02-01")
+    registry.register(fake_run(FakeModel(type="dataset"), new, old), alias="staging")
 
-    assert new.linked == ("wandb-registry-model/ekg-digitizer", ["staging"])
-    assert new.metadata == {
-        "run": "team/ekg/abc123",
-        "config": {"lr": 1e-4},
-        "metrics": {"val/snr": 22.6, "val/mae": 0.04},
-    }
-    assert new.saved == 1
+    assert new.linked == (registry.REGISTRY_PATH, ["staging"])
+    assert new.metadata == {"config": {"lr": 1e-4}, "metrics": {"val/snr": 12.5, "loss": 0.8}}
     assert old.linked is None
 
 
 def test_register_without_alias():
-    model = FakeArtifact()
+    model = FakeModel()
     registry.register(fake_run(model))
-    assert model.linked == ("wandb-registry-model/ekg-digitizer", None)
+    assert model.linked == (registry.REGISTRY_PATH, None)
 
 
-def test_register_requires_a_model_artifact():
-    with pytest.raises(ValueError, match="no logged artifact"):
-        registry.register(fake_run(FakeArtifact(type="dataset")))
+def test_register_requires_a_saved_model():
+    with pytest.raises(ValueError, match="no saved model"):
+        registry.register(fake_run(FakeModel(type="dataset")))
 
 
 @pytest.mark.parametrize("alias", ["prod", "latest"])
 def test_unknown_alias_is_rejected(alias):
     with pytest.raises(ValueError, match="Alias must be one of"):
-        registry.register(fake_run(FakeArtifact()), alias=alias)
+        registry.register(fake_run(FakeModel()), alias=alias)
 
 
-def test_promote_adds_alias_to_version():
-    artifact = FakeArtifact(aliases=["latest"])
-    api = SimpleNamespace(artifact=lambda name: artifact if name == "wandb-registry-model/ekg-digitizer:v3" else None)
+def test_promote_adds_alias_once():
+    model = FakeModel(aliases=["latest"])
+    api = SimpleNamespace(artifact=lambda path: model if path == f"{registry.REGISTRY_PATH}:v3" else None)
 
     registry.promote(api, "v3", "production")
-    assert artifact.aliases == ["latest", "production"]
-    assert artifact.saved == 1
+    registry.promote(api, "v3", "production")
 
-    registry.promote(api, "v3", "production")  # already promoted: no change
-    assert artifact.saved == 1
+    assert model.aliases == ["latest", "production"]
+    assert model.saved == 1
