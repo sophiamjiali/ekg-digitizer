@@ -68,5 +68,5 @@ def load_record(path: Path) -> Record:
 
 
 def load_split(directory: Path) -> dict[str, Record]:
-    """Load every ``*.csv`` record in ``directory``, keyed by file stem."""
-    return {path.stem: load_record(path) for path in sorted(Path(directory).glob("*.csv"))}
+    """Load every ``*.csv`` record under ``directory`` (including ``<id>/<id>.csv``), keyed by file stem."""
+    return {path.stem: load_record(path) for path in sorted(Path(directory).rglob("*.csv"))}
