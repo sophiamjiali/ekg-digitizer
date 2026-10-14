@@ -84,97 +84,75 @@ class EKGDataset(Dataset):
         return np.ones((h, w, c), dtype = np.uint8) * 255
 
 
-    def __getitem__(self, idx: int):
+    def _prepare_image(self, image, base_id):
+        """Standardizes the image size."""
 
-        # Load the image and standardize its colour-scheme
-        row     = self.images.iloc[idx]
-        base_id = row['id']
-        image   = self.load_image(base_id)
+        if image is None or image.size == 0:
+            raise ValueError(f"Invalid image for ID {base_id}")
+        if self.transform:
+            return self.transform(image=image)['image']
+
+        width = self.config.image_properties.resize_width
+        height = self.config.image_properties.resize_height
+        
+        image = cv2.resize(image, (width, height))
+        return torch.from_numpy(image.transpose(2, 0, 1)).float() / 255.0
+
+
+    def __getitem__(self, idx: int):
 
         # Extract relevant configurations
         base_fs          = self.config.signal_properties.base_fs
         lead_ii_duration = self.config.signal_properties.lead_ii_duration
         other_duration   = self.config.signal_properties.other_leads_duration
-        resize_height    = self.config.image_properties.resize_height
-        resize_width     = self.config.image_properties.resize_width
 
-        if self.is_train:
-            csv_path = os.path.join(self.data_dir, str(base_id), 
-                                    f"{base_id}.csv")
-            
-            try:
-                signals = pd.read_csv(csv_path)
-                fs      = row.get('fs', base_fs)
+        # Load the image and standardize its colour-scheme
+        row          = self.images.iloc[idx]
+        base_id      = row['id']
+        image        = self.load_image(base_id)
+        fs           = row.get('fs', base_fs)
+        image_tensor = self._prepare_image(image, base_id)
 
-                # Extract the time-series signal data from each lead
-                all_signals = []
-                for lead in self.leads:
-                    signal = signals[lead].to_numpy(dtype = np.float64)
-                    
-                    # Handle NaN values
-                    signal = pd.Series(signal).interpolate(
-                        method          = 'linear', 
-                        limit_direction = 'both'
-                    ).fillna(0).to_numpy(dtype = np.float64)
-                    
-                    # Extract the lead's expected length and resize it
-                    if lead == 'II': expected_l = int(fs * lead_ii_duration)
-                    else           : expected_l = int(fs * other_duration)
+        if not self.is_train: return image_tensor, base_id, fs
 
-                    
-                    if len(signal) > expected_l:
-                        signal = signal[:expected_l]
-                    elif len(signal) < expected_l:
-                        signal = np.pad(signal, (0, expected_l - len(signal)), 
-                                        mode = 'edge')
-                    
-                    # Apply signal processing
-                    signal = self.signal_proc.denoise_signal(signal)
-                    signal = self.signal_proc.remove_baseline_wander(signal, fs)
-                    
-                    all_signals.append(signal.astype(np.float32))
-                
-                target_signals = np.stack(all_signals, axis = 0)
-                
-            except Exception as e:
-                target_signals = np.zeros((
-                    12, int(base_fs * lead_ii_duration)
-                ), dtype = np.float32)
-            
-            # Apply transformations if provided
-            if self.transform:
-                transformed  = self.transform(image = image)
-                image_tensor = transformed['image']
-            else:
+        csv_path = os.path.join(self.data_dir, str(base_id), f"{base_id}.csv")
+        max_len = int(fs * lead_ii_duration)
 
-                # Check if the file is missing before attempting resize
-                if image is None or image.size == 0: 
-                    raise ValueError(f"Invalid image for ID {base_id}")
-                
-                image_resized = cv2.resize(image, (resize_width, resize_height))
-                image_tensor = torch.from_numpy(
-                    image_resized.transpose(2, 0, 1)
-                ).float() / 255.0
-            
-            return image_tensor, torch.FloatTensor(target_signals), base_id
-        
-        else:
-            fs = row.get('fs', base_fs)
-            
-            if self.transform:
-                transformed  = self.transform(image = image)
-                image_tensor = transformed['image']
-            else:
+        try:
+            signals_df = pd.read_csv(csv_path)
+            targets   = np.zeros((len(self.leads), max_len), dtype = np.float32)
 
-                # Check if the file is missing before attempting resize
-                if image is None or image.size == 0: 
-                    raise ValueError(f"Invalid image for ID {base_id}")
-                
-                image_resized = cv2.resize(image, (resize_width, resize_height))
-                image_tensor = torch.from_numpy(
-                    image_resized.transpose(2, 0, 1)
-                ).float() / 255.0
-            
-            return image_tensor, base_id, fs
+            # Ingest and process each signal, standardizing their length
+            for i, lead in enumerate(self.leads):
+                signal = signals_df[lead].to_numpy(dtype=np.float64)
+                signal = (pd.Series(signal)
+                        .interpolate(method='linear', limit_direction='both')
+                        .fillna(0).to_numpy())
+
+                duration = lead_ii_duration if lead == 'II' else other_duration
+                expected_len = int(fs * duration)
+
+                # Pad with zeroes if the length is not equal to the ii duration
+                if len(signal) > expected_len:
+                    signal = signal[:expected_len]
+                elif len(signal) < expected_len:
+                    signal = np.pad(signal, (0, expected_len - len(signal)), 
+                                    mode = 'edge')
+
+                # Preprocess the signal for training
+                signal = self.signal_proc.denoise_signal(signal)
+                signal = self.signal_proc.remove_baseline_wander(signal, fs)
+
+                # Initialize the target for loss masking
+                targets[i, :expected_len] = signal
+
+        except (FileNotFoundError, KeyError, pd.errors.ParserError) as e:
+            raise RuntimeError(
+                f"Failed to load signals for ID {base_id}: {e!r}"
+            ) from e
+
+        targets = torch.from_numpy(targets)
+
+        return image_tensor, targets, base_id
 
 # [END]
