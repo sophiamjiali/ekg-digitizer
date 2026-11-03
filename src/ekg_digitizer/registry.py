@@ -11,6 +11,7 @@ Each alias is on only one version at a time.
 """
 
 import wandb
+from wandb.apis.public import Run as ApiRun
 
 REGISTRY_PATH = "wandb-registry-model/ekg-digitizer"
 ALIASES = ("staging", "production")
@@ -21,14 +22,14 @@ def _check_alias(alias: str) -> None:
         raise ValueError(f"Alias must be one of {ALIASES}, got {alias!r}")
 
 
-def log_model(run, checkpoint: str) -> wandb.Artifact:
+def log_model(run: wandb.Run, checkpoint: str) -> wandb.Artifact:
     """Save a checkpoint (e.g. best_model.pth) to a training run."""
     artifact = wandb.Artifact("ekg-digitizer", type="model")
     artifact.add_file(checkpoint)
     return run.log_artifact(artifact)
 
 
-def register(run, alias: str | None = None) -> wandb.Artifact:
+def register(run: ApiRun, alias: str | None = None) -> wandb.Artifact:
     """Add a training run's newest model to the registry, with its config and metrics."""
     if alias:
         _check_alias(alias)
@@ -50,7 +51,7 @@ def register(run, alias: str | None = None) -> wandb.Artifact:
     return model.link(REGISTRY_PATH, aliases=[alias] if alias else None)
 
 
-def promote(api, version: str, alias: str) -> wandb.Artifact:
+def promote(api: wandb.Api, version: str, alias: str) -> wandb.Artifact:
     """Move an alias to a registered version (e.g. "v3")."""
     _check_alias(alias)
 
