@@ -157,7 +157,7 @@ class EnhancedEKGNet(nn.Module):
         
         # Initial stem
         self.stem = nn.Sequential(
-            nn.Conv2d(config.img_channels, 64, 7, stride=2, padding=3, bias=False),
+            nn.Conv2d(config.image_properties.img_channels, 64, 7, stride=2, padding=3, bias=False),
             nn.BatchNorm2d(64),
             nn.ReLU(inplace=True),
             nn.MaxPool2d(3, stride=2, padding=1)
@@ -181,7 +181,11 @@ class EnhancedEKGNet(nn.Module):
         
         for lead in ['I', 'II', 'III', 'aVR', 'aVL', 'aVF', 
                      'V1', 'V2', 'V3', 'V4', 'V5', 'V6']:
-            target_len = int(config.base_fs * config.lead_ii_duration) if lead == 'II' else int(config.base_fs * config.other_leads_duration)
+            target_len = (
+                int(config.signal_properties.base_fs * config.signal_properties.lead_ii_duration) 
+                if lead == 'II' 
+                else int(config.signal_properties.base_fs * config.signal_properties.other_leads_duration)
+            )
             self.lead_decoders[lead] = AdvancedTCN(512, target_len)
     
     def _make_layer(self, in_channels, out_channels, num_blocks, stride):

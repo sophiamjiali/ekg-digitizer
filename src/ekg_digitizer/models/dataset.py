@@ -10,6 +10,9 @@ import torch
 import numpy as np
 import pandas as pd
 
+from math import gcd
+from scipy.signal import resample_poly
+
 from torch.utils.data import Dataset
 
 from src.ekg_digitizer.preprocessing.image_processor import EKGImageProcessor
@@ -116,7 +119,7 @@ class EKGDataset(Dataset):
         if not self.is_train: return image_tensor, base_id, fs
 
         csv_path = os.path.join(self.data_dir, str(base_id), f"{base_id}.csv")
-        max_len = int(fs * lead_ii_duration)
+        max_len = int(base_fs * lead_ii_duration)
 
         try:
             signals_df = pd.read_csv(csv_path)
@@ -129,8 +132,15 @@ class EKGDataset(Dataset):
                         .interpolate(method='linear', limit_direction='both')
                         .fillna(0).to_numpy())
 
+                # Resample signals to the configured base sampling rate
+                if fs != base_fs:
+                    divisor = gcd(int(fs), int(base_fs))
+                    up = int(base_fs) // divisor
+                    down = int(fs) // divisor
+                    signal = resample_poly(signal, up=up, down=down)
+
                 duration = lead_ii_duration if lead == 'II' else other_duration
-                expected_len = int(fs * duration)
+                expected_len = int(base_fs * duration)
 
                 # Pad with zeroes if the length is not equal to the ii duration
                 if len(signal) > expected_len:
@@ -141,7 +151,7 @@ class EKGDataset(Dataset):
 
                 # Preprocess the signal for training
                 signal = self.signal_proc.denoise_signal(signal)
-                signal = self.signal_proc.remove_baseline_wander(signal, fs)
+                signal = self.signal_proc.remove_baseline_wander(signal, base_fs)
 
                 # Initialize the target for loss masking
                 targets[i, :expected_len] = signal
