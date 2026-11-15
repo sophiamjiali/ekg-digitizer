@@ -10,14 +10,8 @@ from torch.cuda import device_count
 
 @dataclass
 class HardwareConfig:
-    use_multi_gpu: bool = device_count() > 1
-    device_ids: list[int] = field(
-        default_factory=lambda: (
-            list(range(device_count()))
-            if device_count() > 1
-            else [0]
-        )
-    )
+    use_multi_gpu: int = device_count() > 1
+    device_ids: list[int] = list(range(device_count())) if use_multi_gpu else [0]
 
 @dataclass
 class TrainingConfig:

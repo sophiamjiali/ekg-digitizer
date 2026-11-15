@@ -74,3 +74,9 @@ def test_evaluate_on_split(tmp_path):
     scores = evaluate(load_split(tmp_path / "ref"), load_split(tmp_path / "pred"))
     assert scores["num_records"] == 1
     assert 15 < scores["snr"] < 30
+
+
+def test_load_split_reads_dataset_layout(tmp_path):
+    (tmp_path / "train" / "42").mkdir(parents=True)
+    np.savetxt(tmp_path / "train" / "42" / "42.csv", np.ones((10, 2)), delimiter=",", header="I,II", comments="")
+    assert set(load_split(tmp_path / "train")) == {"42"}

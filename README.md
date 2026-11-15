@@ -59,3 +59,23 @@ From the repository root:
 cd data
 wget -r -N -c -np https://physionet.org/files/ludb/1.0.1/ 
 ```
+## Model Registry
+
+Models are versioned in the W&B Model Registry. The `staging` alias marks a version under review, and `production` marks the approved one.
+
+**Setup:** `pip install -r requirements.txt`, then `wandb login`.
+
+**In training**, pass the config to W&B and save the best checkpoint, so the run can be registered:
+
+```python
+run = wandb.init(project="ekg-digitizer", config=dataclasses.asdict(config))
+...
+log_model(run, "best_model.pth")  # from ekg_digitizer.registry
+```
+
+**Register and promote:**
+
+```bash
+PYTHONPATH=src python scripts/register_model.py register --run <entity>/<project>/<run_id> --alias staging
+PYTHONPATH=src python scripts/register_model.py promote --version v3 --alias production
+```
