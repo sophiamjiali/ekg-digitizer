@@ -5,7 +5,7 @@
 
 import yaml
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from torch.cuda import device_count
 
 @dataclass
