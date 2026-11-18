@@ -100,21 +100,6 @@ class EKGDataset(Dataset):
 
         return cv2.cvtColor(img, code)
 
-                # Convert the colour space based on the input channels
-                if   img.ndim == 2    : code = cv2.COLOR_GRAY2RGB
-                elif img.shape[2] == 4: code = cv2.COLOR_BGRA2RGB
-                else                  : code = cv2.COLOR_BGR2RGB
-
-    def _prepare_image(self, image, base_id):
-        """Standardizes the image size."""
-
-        # If the image was not found or could not be loaded, return zeroes
-        h = self.config.image_properties.img_height
-        w = self.config.image_properties.img_width
-        c = self.config.image_properties.img_channels
-
-        return np.ones((h, w, c), dtype = np.uint8) * 255
-
 
     def _prepare_image(self, image, base_id):
         """Standardizes the image size."""
@@ -134,144 +119,57 @@ class EKGDataset(Dataset):
     def __getitem__(self, idx: int):
 
         # Extract relevant configurations
-        base_fs          = self.config.signal_properties.base_fs
+        base_fs = self.config.signal_properties.base_fs
         lead_ii_duration = self.config.signal_properties.lead_ii_duration
-        other_duration   = self.config.signal_properties.other_leads_duration
+        other_duration = self.config.signal_properties.other_leads_duration
 
         # Load the image and standardize its colour-scheme
-        row          = self.images.iloc[idx]
-        base_id      = row['id']
-        image        = self.load_image(base_id)
-        fs           = row.get('fs', base_fs)
+        row = self.images.iloc[idx]
+        base_id = row['id']
+        image = self.load_image(base_id)
+        fs = int(row.get('fs', base_fs))
         image_tensor = self._prepare_image(image, base_id)
 
-        if not self.is_train: return image_tensor, base_id, fs
+        if not self.is_train:
+            return image_tensor, base_id, fs
 
         csv_path = os.path.join(self.data_dir, str(base_id), f"{base_id}.csv")
-        max_len = int(fs * lead_ii_duration)
+        max_len = int(base_fs * lead_ii_duration)
 
         try:
             signals_df = pd.read_csv(csv_path)
-            targets   = np.zeros((len(self.leads), max_len), dtype = np.float32)
+            target_signals = np.zeros((len(self.leads), max_len), dtype=np.float32)
 
-            # Ingest and process each signal, standardizing their length
             for i, lead in enumerate(self.leads):
-                signal = signals_df[lead].to_numpy(dtype=np.float64)
-                signal = (pd.Series(signal)
-                        .interpolate(method='linear', limit_direction='both')
-                        .fillna(0).to_numpy())
 
-                duration = lead_ii_duration if lead == 'II' else other_duration
-                expected_len = int(fs * duration)
+                signal = (signals_df[lead].dropna().to_numpy(dtype=np.float64))
 
-                # Pad with zeroes if the length is not equal to the ii duration
+                # Resample to the configured base sampling rate
+                if fs != base_fs:
+                    divisor = gcd(fs, base_fs)
+                    up = base_fs // divisor
+                    down = fs // divisor
+                    signal = resample_poly(signal, up=up, down=down)
+
+                if lead == 'II':
+                    expected_len = int(base_fs * lead_ii_duration)
+                else:
+                    expected_len = int(base_fs * other_duration)
+
+                # Match each signal to its expected length
                 if len(signal) > expected_len:
                     signal = signal[:expected_len]
                 elif len(signal) < expected_len:
-                    signal = np.pad(signal, (0, expected_len - len(signal)), 
-                                    mode = 'edge')
+                    signal = np.pad(signal,(0, expected_len - len(signal)), mode='edge')
 
                 # Preprocess the signal for training
                 signal = self.signal_proc.denoise_signal(signal)
-                signal = self.signal_proc.remove_baseline_wander(signal, fs)
+                signal = self.signal_proc.remove_baseline_wander(signal,base_fs)
 
-                # Initialize the target for loss masking
-                targets[i, :expected_len] = signal
+                # Store the signal in the shared target array
+                target_signals[i, :expected_len] = signal.astype(np.float32)
 
         except (FileNotFoundError, KeyError, pd.errors.ParserError) as e:
-            raise RuntimeError(
-                f"Failed to load signals for ID {base_id}: {e!r}"
-            ) from e
+            raise RuntimeError(f"Failed to load signals for ID {base_id}: {e!r}") from e
 
-        targets = torch.from_numpy(targets)
-
-        return image_tensor, targets, base_id
-
-        csv_path = os.path.join(
-            self.data_dir,
-            str(base_id),
-            f"{base_id}.csv"
-        )
-
-        max_len = int(
-            base_fs * lead_ii_duration
-        )
-
-        try:
-            signals_df = pd.read_csv(csv_path)
-
-            target_signals = np.zeros(
-                (len(self.leads), max_len),
-                dtype=np.float32
-            )
-
-            # Extract the time-series signal data from each lead
-            for i, lead in enumerate(self.leads):
-
-                signal = (
-                    signals_df[lead]
-                    .dropna()
-                    .to_numpy(dtype=np.float64)
-                )
-
-                # Resample each signal to the configured base frequency
-                if fs != base_fs:
-                    divisor = gcd(fs, base_fs)
-
-                    up = base_fs // divisor
-                    down = fs // divisor
-
-                    signal = resample_poly(
-                        signal,
-                        up=up,
-                        down=down
-                    )
-
-                if lead == 'II':
-                    expected_l = int(
-                        base_fs * lead_ii_duration
-                    )
-                else:
-                    expected_l = int(
-                        base_fs * other_leads_duration
-                    )
-
-                if len(signal) > expected_l:
-                    signal = signal[:expected_l]
-
-                elif len(signal) < expected_l:
-                    signal = np.pad(
-                        signal,
-                        (0, expected_l - len(signal)),
-                        mode='edge'
-                    )
-
-                # Apply signal processing
-                signal = self.signal_proc.denoise_signal(
-                    signal
-                )
-
-                signal = self.signal_proc.remove_baseline_wander(
-                    signal,
-                    base_fs
-                )
-
-                # Store each lead in the shared target array
-                target_signals[i, :expected_l] = (
-                    signal.astype(np.float32)
-                )
-
-        except (
-            FileNotFoundError,
-            KeyError,
-            pd.errors.ParserError
-        ) as e:
-            raise RuntimeError(
-                f"Failed to load signals for ID {base_id}: {e!r}"
-            ) from e
-
-        return (
-            image_tensor,
-            torch.from_numpy(target_signals),
-            base_id
-        )
+        return image_tensor, torch.from_numpy(target_signals), base_id
