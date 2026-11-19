@@ -7,7 +7,7 @@ Where and why the model fails, to guide what to fix next.
 Run inference on the validation split, then rank and plot the worst records:
 
 ```bash
-PYTHONPATH=src python scripts/error_analysis.py \
+python scripts/error_analysis.py \
     --ref-dir <val signals> --pred-dir <val predictions> \
     --image-dir <val images> --out-dir outputs/error_analysis --top 20
 ```

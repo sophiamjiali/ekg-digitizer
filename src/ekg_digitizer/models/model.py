@@ -7,7 +7,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from src.ekg_digitizer.config import Config
+from ekg_digitizer.config import Config
 
 
 class CBAM(nn.Module):

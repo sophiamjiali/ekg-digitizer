@@ -1,0 +1,38 @@
+# Build and package metadata for ekg-digitizer.
+# Install in editable mode with `pip install -e .` so `import ekg_digitizer` works
+# from any directory (tests, scripts, containers) without setting PYTHONPATH.
+
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ekg-digitizer"
+version = "0.1.0"
+description = "Deep learning framework for extracting time-series data from digitized EKG images"
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+requires-python = ">=3.10"
+
+# Direct runtime dependencies. Versions match the pins in requirements.txt,
+# written as lower bounds so the package can be installed alongside other projects.
+dependencies = [
+    "numpy>=2.5.4",
+    "pandas>=3.0.6",
+    "scipy>=1.18.1",
+    "torch>=2.14.1",
+    "opencv-python>=5.0.0.93",
+    "matplotlib>=3.10.7",
+    "pyyaml",
+    "wandb>=0.30.0",
+    "albumentations",
+]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+# src layout: only the ekg_digitizer package under src/ is shipped.
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["ekg_digitizer*"]
