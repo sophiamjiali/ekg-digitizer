@@ -1,6 +1,6 @@
 import torch
 
-from src.ekg_digitizer.models.model import EnhancedEKGNet
+from ekg_digitizer.models.model import EnhancedEKGNet
 
 
 class ImageProperties:

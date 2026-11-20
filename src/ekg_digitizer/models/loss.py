@@ -7,7 +7,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from src.ekg_digitizer.preprocessing.signal_processor import SignalProcessor
+from ekg_digitizer.preprocessing.signal_processor import SignalProcessor
 
 
 class EnhancedSNRLoss(nn.Module):

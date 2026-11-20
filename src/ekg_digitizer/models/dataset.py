@@ -14,9 +14,9 @@ from math import gcd
 from scipy.signal import resample_poly
 from torch.utils.data import Dataset
 
-from src.ekg_digitizer.preprocessing.image_processor import EKGImageProcessor
-from src.ekg_digitizer.preprocessing.signal_processor import SignalProcessor
-from src.ekg_digitizer.config import Config
+from ekg_digitizer.preprocessing.image_processor import EKGImageProcessor
+from ekg_digitizer.preprocessing.signal_processor import SignalProcessor
+from ekg_digitizer.config import Config
 
 
 SEGMENTS = ['0001', '0003', '0004', '0005', '0006',
