@@ -2,3 +2,40 @@
 # Script:           ci.yml
 # Purpose:          Define and configure automated Lint and tests
 # ==============================================================================
+
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Cancel an in-progress run when a newer commit is pushed to the same branch/PR
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      # Keep this version in sync with the ruff rev in .pre-commit-config.yaml
+      - run: pip install ruff==0.17.6
+      # github format shows each issue as an annotation on the PR diff
+      - run: ruff check --output-format=github .
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+      # CPU-only torch: the default wheel bundles CUDA (several GB) that CI never uses
+      - run: pip install -e ".[dev]" --extra-index-url https://download.pytorch.org/whl/cpu
+      - run: pytest
