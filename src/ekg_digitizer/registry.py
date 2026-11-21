@@ -29,8 +29,16 @@ def log_model(run: wandb.Run, checkpoint: str) -> wandb.Artifact:
     return run.log_artifact(artifact)
 
 
-def register(run: ApiRun, alias: str | None = None) -> wandb.Artifact:
-    """Add a training run's newest model to the registry, with its config and metrics."""
+def register(
+    run: ApiRun,
+    alias: str | None = None,
+    test_metrics: dict[str, float] | None = None,
+) -> wandb.Artifact:
+    """Add a training run's newest model to the registry, with its config and metrics.
+
+    ``test_metrics`` (e.g. SNR/MAE on the held-out test split) are stored
+    separately from the run's own training/validation metrics.
+    """
     if alias:
         _check_alias(alias)
 
@@ -46,6 +54,8 @@ def register(run: ApiRun, alias: str | None = None) -> wandb.Artifact:
         if isinstance(value, (int, float)) and not name.startswith("_")
     }
     model.metadata.update(config=dict(run.config), metrics=metrics)
+    if test_metrics is not None:
+        model.metadata["test_metrics"] = test_metrics
     model.save()
 
     return model.link(REGISTRY_PATH, aliases=[alias] if alias else None)
