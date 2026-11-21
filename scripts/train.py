@@ -16,6 +16,7 @@ from ekg_digitizer.config import load_config
 from ekg_digitizer.models.dataset import EKGDataset
 from ekg_digitizer.models.loss import EnhancedSNRLoss
 from ekg_digitizer.models.model import EnhancedEKGNet
+from ekg_digitizer.preprocessing.model_input import IMAGENET_MEAN, IMAGENET_STD
 
 # ================================
 # Training Functions
@@ -96,8 +97,9 @@ def main():
     print(f"Available GPUs: {torch.cuda.device_count()}")
 
     # Load data
+    # Local copy of the Kaggle train.csv (paths are relative to the repo root)
     train_df = pd.read_csv(
-        "/kaggle/input/physionet-ecg-image-digitization/train.csv"
+        "data/train.csv"
     )
 
     print(f"Training samples: {len(train_df)}")
@@ -181,9 +183,10 @@ def main():
             p=0.2
         ),
 
+        # Same ImageNet statistics as prepare_model_input, so inference matches training
         A.Normalize(
-            mean=[0.485, 0.456, 0.406],
-            std=[0.229, 0.224, 0.225]
+            mean=IMAGENET_MEAN.tolist(),
+            std=IMAGENET_STD.tolist()
         ),
 
         ToTensorV2()
@@ -192,7 +195,8 @@ def main():
     # Dataset
     train_dataset = EKGDataset(
         images=train_df,
-        data_dir="/kaggle/input/physionet-ecg-image-digitization/train",
+        # Folder of per-record subfolders (data/train/<id>/<id>.png and <id>.csv)
+        data_dir="data/train",
         config=config,
         transform=train_transform,
         is_train=True
