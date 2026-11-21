@@ -13,10 +13,10 @@ from albumentations.pytorch import ToTensorV2
 from torch.amp import autocast, GradScaler
 from torch.utils.data import DataLoader
 
-from src.ekg_digitizer.config import load_config
-from src.ekg_digitizer.models.dataset import EKGDataset
-from src.ekg_digitizer.models.model import EnhancedEKGNet
-from src.ekg_digitizer.models.loss import EnhancedSNRLoss
+from ekg_digitizer.config import load_config
+from ekg_digitizer.models.dataset import EKGDataset
+from ekg_digitizer.models.model import EnhancedEKGNet
+from ekg_digitizer.models.loss import EnhancedSNRLoss
 
 # ================================
 # Training Functions

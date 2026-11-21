@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 import pandas as pd
 
-from src.ekg_digitizer.models.dataset import EKGDataset
+from ekg_digitizer.models.dataset import EKGDataset
 
 
 class ImageProperties:

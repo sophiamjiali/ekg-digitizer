@@ -76,6 +76,6 @@ log_model(run, "best_model.pth")  # from ekg_digitizer.registry
 **Register and promote:**
 
 ```bash
-PYTHONPATH=src python scripts/register_model.py register --run <entity>/<project>/<run_id> --alias staging
-PYTHONPATH=src python scripts/register_model.py promote --version v3 --alias production
+python scripts/register_model.py register --run <entity>/<project>/<run_id> --alias staging
+python scripts/register_model.py promote --version v3 --alias production
 ```

@@ -1,6 +1,6 @@
 import torch
 
-from src.ekg_digitizer.models.loss import EnhancedSNRLoss
+from ekg_digitizer.models.loss import EnhancedSNRLoss
 
 
 def test_loss_forward_pass():

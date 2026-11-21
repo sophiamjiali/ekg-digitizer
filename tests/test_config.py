@@ -1,4 +1,4 @@
-from src.ekg_digitizer.config import HardwareConfig, load_config
+from ekg_digitizer.config import HardwareConfig, load_config
 
 
 def test_hardware_config_initialization():

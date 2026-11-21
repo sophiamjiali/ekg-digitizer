@@ -8,7 +8,7 @@ import cv2
 import numpy as np
 
 from cv2.typing import MatLike
-from src.ekg_digitizer.preprocessing.signal_processor import SignalProcessor
+from ekg_digitizer.preprocessing.signal_processor import SignalProcessor
 
 
 class EKGImageProcessor:
