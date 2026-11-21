@@ -14,7 +14,7 @@ from scipy.signal import resample_poly
 from torch.utils.data import Dataset
 
 from ekg_digitizer.config import Config
-from ekg_digitizer.preprocessing.image_processor import EKGImageProcessor
+from ekg_digitizer.preprocessing.model_input import prepare_model_input
 from ekg_digitizer.preprocessing.signal_processor import SignalProcessor
 
 SEGMENTS = ['0001', '0003', '0004', '0005', '0006',
@@ -38,7 +38,6 @@ class EKGDataset(Dataset):
         self.transform   = transform
         self.is_train    = is_train
         self.use_mixup   = use_mixup and is_train
-        self.processor   = EKGImageProcessor()
         self.signal_proc = SignalProcessor()
         self.leads       = ['I', 'II', 'III', 'aVR', 'aVL', 'aVF',
                             'V1', 'V2', 'V3', 'V4', 'V5', 'V6']
@@ -107,11 +106,12 @@ class EKGDataset(Dataset):
         if self.transform:
             return self.transform(image=image)['image']
 
+        # Without a transform, use the same preprocessing as inference so
+        # the two paths cannot drift apart (see model_input.py)
         width = self.config.image_properties.resize_width
         height = self.config.image_properties.resize_height
-        
-        image = cv2.resize(image, (width, height))
-        return torch.from_numpy(image.transpose(2, 0, 1)).float() / 255.0
+
+        return prepare_model_input(image, width, height)
 
 
     def __getitem__(self, idx: int):
