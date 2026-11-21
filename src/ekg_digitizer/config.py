@@ -3,10 +3,11 @@
 # Purpose   : Defines the configuration class and initializes it from .yaml
 # ==============================================================================
 
-import yaml
-
 from dataclasses import dataclass, field
+
+import yaml
 from torch.cuda import device_count
+
 
 @dataclass
 class HardwareConfig:

@@ -3,20 +3,19 @@
 # Purpose   : Main training entry point script
 # ==============================================================================
 
+import albumentations as A
 import cv2
 import pandas as pd
 import torch
-import torch.nn as nn
-import albumentations as A
-
 from albumentations.pytorch import ToTensorV2
-from torch.amp import autocast, GradScaler
+from torch import nn
+from torch.amp import GradScaler, autocast
 from torch.utils.data import DataLoader
 
 from ekg_digitizer.config import load_config
 from ekg_digitizer.models.dataset import EKGDataset
-from ekg_digitizer.models.model import EnhancedEKGNet
 from ekg_digitizer.models.loss import EnhancedSNRLoss
+from ekg_digitizer.models.model import EnhancedEKGNet
 
 # ================================
 # Training Functions
