@@ -79,3 +79,10 @@ log_model(run, "best_model.pth")  # from ekg_digitizer.registry
 PYTHONPATH=src python scripts/register_model.py register --run <entity>/<project>/<run_id> --alias staging
 PYTHONPATH=src python scripts/register_model.py promote --version v3 --alias production
 ```
+
+**Select the best model:** score each candidate's test-split predictions, then register the one with the highest SNR along with its test metrics. Document the choice in [docs/model_selection.md](docs/model_selection.md).
+
+```bash
+PYTHONPATH=src python scripts/select_model.py --ref-dir data/test/signals \
+    --candidate <entity>/<project>/<run_id>=outputs/test/<run_id> --alias staging
+```
