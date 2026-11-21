@@ -4,8 +4,8 @@
 # ==============================================================================
 
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
+from torch import nn
 
 from ekg_digitizer.preprocessing.signal_processor import SignalProcessor
 
@@ -70,7 +70,7 @@ class EnhancedSNRLoss(nn.Module):
 
                 freq_loss = 0.7 * mag_loss + 0.3 * phase_loss
 
-            except:
+            except RuntimeError:  # torch FFT/loss failures (e.g. unsupported dtype on device)
                 freq_loss = 0
 
             # Gradient loss

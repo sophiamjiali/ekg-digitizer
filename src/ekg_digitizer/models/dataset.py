@@ -4,20 +4,18 @@
 # ==============================================================================
 
 import os
-import cv2
-import torch
+from math import gcd
 
+import cv2
 import numpy as np
 import pandas as pd
-
-from math import gcd
+import torch
 from scipy.signal import resample_poly
 from torch.utils.data import Dataset
 
+from ekg_digitizer.config import Config
 from ekg_digitizer.preprocessing.image_processor import EKGImageProcessor
 from ekg_digitizer.preprocessing.signal_processor import SignalProcessor
-from ekg_digitizer.config import Config
-
 
 SEGMENTS = ['0001', '0003', '0004', '0005', '0006',
             '0009', '0010', '0011', '0012']

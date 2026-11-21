@@ -4,7 +4,6 @@
 # ==============================================================================
 
 import numpy as np
-
 from scipy import signal as scipy_signal
 from scipy.signal import medfilt
 

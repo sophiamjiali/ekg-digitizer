@@ -4,10 +4,9 @@
 # ==============================================================================
 
 import cv2
-
 import numpy as np
-
 from cv2.typing import MatLike
+
 from ekg_digitizer.preprocessing.signal_processor import SignalProcessor
 
 

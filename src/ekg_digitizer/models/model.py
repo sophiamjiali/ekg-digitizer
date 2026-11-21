@@ -4,8 +4,8 @@
 # ==============================================================================
 
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
+from torch import nn
 
 from ekg_digitizer.config import Config
 
@@ -238,7 +238,7 @@ class AdvancedTCN(nn.Module):
         self,
         input_dim,
         output_length,
-        num_channels=[512, 512, 384, 256]
+        num_channels=(512, 512, 384, 256)  # tuple: a list default would be shared across calls
     ):
         super().__init__()
 

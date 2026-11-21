@@ -1,0 +1,9 @@
+# Runs the same ruff checks as CI before each commit.
+# Setup: pip install pre-commit && pre-commit install
+# Keep rev in sync with the ruff version pinned in .github/workflows/ci.yml
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.17.6
+    hooks:
+      - id: ruff-check
+        args: [--fix]  # auto-fix what it can (e.g. import order); re-stage and commit again
