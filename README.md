@@ -73,6 +73,8 @@ run = wandb.init(project="ekg-digitizer", config=dataclasses.asdict(config))
 log_model(run, "best_model.pth")  # from ekg_digitizer.registry
 ```
 
+`log_model` also exports a weights-only `model_weights.pth` (no optimizer state) into the same artifact. Serving loads that file with `load_weights(model, path)` from `ekg_digitizer.models.weights`.
+
 **Register and promote:**
 
 ```bash
