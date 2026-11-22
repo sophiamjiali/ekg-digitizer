@@ -88,3 +88,5 @@ python scripts/register_model.py promote --version v3 --alias production
 PYTHONPATH=src python scripts/select_model.py --ref-dir data/test/signals \
     --candidate <entity>/<project>/<run_id>=outputs/test/<run_id> --alias staging
 ```
+
+**Serving:** `load_production_model(model)` from `ekg_digitizer.serving` loads whichever version holds the `production` alias, and reports that version in `.version`. Call it at startup. Promoting another version changes the served model on the next restart. It needs `WANDB_API_KEY`; `EKG_REGISTRY_PATH` and `EKG_MODEL_CACHE_DIR` are optional.
