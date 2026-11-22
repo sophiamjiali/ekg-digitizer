@@ -1,0 +1,62 @@
+# ==============================================================================
+# Script:           deploy.yml
+# Purpose:          Build the serving image and deploy it to Cloud Run on a version tag
+# ==============================================================================
+#
+# Trigger: push a tag such as v1.0.0
+#   git tag v1.0.0 && git push origin v1.0.0
+#
+# Needs these GitHub repository variables (set in Settings > Secrets and variables > Actions):
+#   GCP_PROJECT_ID, GCP_REGION, GCP_WORKLOAD_IDENTITY_PROVIDER, GCP_DEPLOY_SERVICE_ACCOUNT
+# The W&B key is read at runtime from Google Secret Manager (WANDB_API_KEY), not from GitHub.
+
+name: Deploy
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+  id-token: write  # lets GitHub request a short-lived Google credential (no stored key)
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      SERVICE: ekg-digitizer
+      REPO: ekg-digitizer
+    steps:
+      - uses: actions/checkout@v5
+
+      # Exchange GitHub's identity token for a Google credential for the deploy account
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      # Let docker push to Artifact Registry in this region
+      - run: gcloud auth configure-docker ${{ vars.GCP_REGION }}-docker.pkg.dev --quiet
+
+      # Tag the image with the git tag so every release is traceable and can be rolled back to
+      - name: Build and push image
+        run: |
+          IMAGE="${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${REPO}/${SERVICE}:${GITHUB_REF_NAME}"
+          docker build -t "$IMAGE" .
+          docker push "$IMAGE"
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+
+      # min-instances 0: the service scales to zero when idle (no cost, slow first request)
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy "$SERVICE" \
+            --image "$IMAGE" \
+            --region "${{ vars.GCP_REGION }}" \
+            --project "${{ vars.GCP_PROJECT_ID }}" \
+            --service-account "ekg-runtime@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com" \
+            --set-secrets "WANDB_API_KEY=WANDB_API_KEY:latest" \
+            --min-instances 0 \
+            --allow-unauthenticated \
+            --quiet
