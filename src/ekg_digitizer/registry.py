@@ -10,8 +10,12 @@ Registered models are numbered versions (v0, v1, ...). Aliases mark status:
 Each alias is on only one version at a time.
 """
 
+from pathlib import Path
+
 import wandb
 from wandb.apis.public import Run as ApiRun
+
+from ekg_digitizer.models.weights import WEIGHTS_FILE, export_weights
 
 REGISTRY_PATH = "wandb-registry-model/ekg-digitizer"
 ALIASES = ("staging", "production")
@@ -23,9 +27,17 @@ def _check_alias(alias: str) -> None:
 
 
 def log_model(run: wandb.Run, checkpoint: str) -> wandb.Artifact:
-    """Save a checkpoint (e.g. best_model.pth) to a training run."""
+    """Save a checkpoint (e.g. best_model.pth) to a training run.
+
+    The artifact holds two files: the full checkpoint (to resume training) and
+    a weights-only ``model_weights.pth`` (for serving). The service downloads
+    just the weights file, e.g. ``artifact.get_entry(WEIGHTS_FILE).download()``.
+    """
+    weights = export_weights(checkpoint, Path(checkpoint).with_name(WEIGHTS_FILE))
+
     artifact = wandb.Artifact("ekg-digitizer", type="model")
     artifact.add_file(checkpoint)
+    artifact.add_file(str(weights), name=WEIGHTS_FILE)
     return run.log_artifact(artifact)
 
 
