@@ -173,29 +173,32 @@ def read_image(path: str | Path) -> np.ndarray:
 
 
 def index_images(image_dir: str | Path) -> dict[str, Path]:
-    """
-    Map record id to the image to digitize, scanning `image_dir` recursively.
-
-    Handles both `<id>.png` and the training layout `<id>/<id>-<segment>.png`. 
-    A plain `<id>.png` wins; otherwise, the first segment in `SEGMENTS` order, 
-    the same choice `EKGDataset.load_image` makes.
-    """
+    """Map record id to the image to digitize, scanning image_dir recursively."""
 
     best: dict[str, tuple[int, Path]] = {}
+
     for path in sorted(Path(image_dir).rglob("*")):
-        if path.suffix.lower() not in IMAGE_SUFFIXES: continue
+        if path.suffix.lower() not in IMAGE_SUFFIXES:
+            continue
 
-        match              = _IMAGE_STEM.match(path.stem)
-        record_id, segment = match['id'], match['segment']
+        match = _IMAGE_STEM.match(path.stem)
 
-        if segment is None: rank = -1
-        else: rank = SEGMENTS.index(segment) if segment in SEGMENTS 
-                     else len(SEGMENTS)
+        if path.parent != Path(image_dir):
+            record_id = path.parent.name
+            segment = match["segment"] if match else None
+        else:
+            if not match:
+                continue
+            record_id, segment = match["id"], match["segment"]
+
+        rank = -1 if segment is None else (
+            SEGMENTS.index(segment) if segment in SEGMENTS else len(SEGMENTS)
+        )
 
         if record_id not in best or rank < best[record_id][0]:
             best[record_id] = (rank, path)
 
-        return {record_id: path for record_id, (_, path) in best.items()}
+    return {record_id: path for record_id, (_, path) in best.items()}
 
 
 def resample_record(record: Record, fs: int, base_fs: int) -> Record:
