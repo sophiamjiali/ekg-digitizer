@@ -19,16 +19,15 @@ python3 scripts/evaluate.py \
 from __future__ import annotations
 
 import re
-import cv2
-import torch
-
-import pandas as pd
-import numpy as np
-
-from torch import nn
 from math import gcd
 from pathlib import Path
+
+import cv2
+import numpy as np
+import pandas as pd
+import torch
 from scipy.signal import resample_poly
+from torch import nn
 
 from ekg_digitizer.config import Config, load_config
 from ekg_digitizer.evaluation.evaluate import Record
@@ -182,7 +181,7 @@ def read_image(path: str | Path) -> np.ndarray:
     if img.ndim == 2: return cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
 
     return cv2.cvtColor(img, cv2.COLOR_BGRA2RGB if img.shape[2] == 4 
-                        else CV2.COLOR_BGR2RGB)
+                        else cv2.COLOR_BGR2RGB)
 
 
 def index_images(image_dir: str | Path) -> dict[str, Path]:

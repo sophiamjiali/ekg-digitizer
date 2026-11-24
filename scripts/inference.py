@@ -4,16 +4,11 @@
 # Test
 # ==============================================================================
 
-import torch
+from argparse import ArgumentParser, BooleanOptionalAction, RawDescriptionHelpFormatter
+from pathlib import Path
 
 import pandas as pd
-
-from pathlib import Path
-from argparse import (
-    ArgumentParser, 
-    RawDescriptionHelpFormatter, 
-    BooleanOptionalAction
-)
+import torch
 
 from ekg_digitizer.config import load_config
 from ekg_digitizer.inference import (
@@ -25,6 +20,7 @@ from ekg_digitizer.inference import (
     resample_record,
     write_record,
 )
+
 
 def main() -> None:
 
