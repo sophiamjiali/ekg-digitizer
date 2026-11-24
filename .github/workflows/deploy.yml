@@ -58,5 +58,7 @@ jobs:
             --service-account "ekg-runtime@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com" \
             --set-secrets "WANDB_API_KEY=WANDB_API_KEY:latest" \
             --min-instances 0 \
+            --cpu 2 \
+            --memory 4Gi \
             --allow-unauthenticated \
             --quiet
