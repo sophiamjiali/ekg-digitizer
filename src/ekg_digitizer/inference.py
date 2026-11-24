@@ -6,7 +6,7 @@
 """
 To test:
 python3 scripts/inference.py \
---checkpoint best_model_weights.pth \
+--checkpoint best_model.pth \
 --image-dir data/train \
 --split-csv data/train.csv \
 --out-dir outputs/test_run
