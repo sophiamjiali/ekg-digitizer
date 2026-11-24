@@ -4,7 +4,14 @@ Records which model is deployed and why. Update this file each time a new model 
 
 ## Process
 
-1. Produce test-split predictions for each candidate model.
+1. Produce test-split predictions for each candidate model with the inference pipeline:
+
+   ```bash
+   PYTHONPATH=src python scripts/inference.py --checkpoint <run_id>/best_model.pth \
+       --image-dir data/test/images --split-csv data/test.csv --out-dir outputs/test/<run_id>
+   ```
+
+   Use the config the candidate was trained with (`--config`); otherwise the model won't load.
 2. Score and register the best one (see `scripts/select_model.py`):
 
    ```bash
@@ -22,7 +29,7 @@ SNR is the primary metric and MAE breaks ties (see [metrics.md](metrics.md)). Te
 
 ## Current selection
 
-_Not yet selected: waiting on the inference pipeline (#33)._
+_Not yet selected._
 
 | Field | Value |
 |---|---|
