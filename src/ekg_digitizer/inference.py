@@ -10,7 +10,7 @@ import cv2
 import torch
 
 import pandas as pd
-import numpy as numpy
+import numpy as np
 
 from torch import nn
 from math import gcd
