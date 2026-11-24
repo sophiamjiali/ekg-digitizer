@@ -29,21 +29,28 @@ SNR is the primary metric and MAE breaks ties (see [metrics.md](metrics.md)). Te
 
 ## Current selection
 
-_Not yet selected._
+The team's only trained checkpoint (`best_model.pth`, trained with `configs/config.yaml` on `main`).
 
 | Field | Value |
 |---|---|
-| Registry version | `wandb-registry-model/ekg-digitizer:vN` |
-| Alias | staging / production |
-| W&B run | `<entity>/<project>/<run_id>` |
-| Test split evaluated on | YYYY-MM-DD |
+| Registry version | `wandb-registry-model/ekg-digitizer:v0` (`v1` holds the same weights, added for the rollback test) |
+| Alias | `production` is on `v1` for the rollback test; `v0` and `v1` serve identical predictions |
+| W&B run | `stanleycao23-university-of-toronto/ekg-digitizer/7wv7g4ia` (`v1`: `.../itiu5j1q`) |
+| Evaluated on | 2026-11-23, 8 training records (`tests/fixtures/regression_ids.txt`), **not** a held-out test split |
 
 ### Candidates
 
 | Run | SNR (dB) | MAE (mV) | Notes (key config differences) |
 |---|---|---|---|
-| | | | |
+| `7wv7g4ia` | 0.119 | 0.0873 | Only candidate; default config, TTA on. Scores are on 8 training records |
 
 ### Rationale
 
-_Why this model was chosen. Include trade-offs beyond the scores, e.g. model size, inference speed, and robustness on external data such as LUDB._
+- It is the only trained model, so there was nothing to compare against.
+- Registered and promoted so the serving path (registry -> Cloud Run) works end to end. Scores are stored in the registry metadata as `train_subset_snr` / `train_subset_mae`, not `test_metrics`, because the records were seen in training.
+- 0.12 dB SNR is close to a flat-line prediction, so treat this as a placeholder rather than a model fit for use.
+
+### Still to do
+
+- Evaluate on a held-out test split (`data/test`, see Process above) once one exists, and store the result as `test_metrics`.
+- Retrain or compare further candidates if the test SNR confirms the low score, then update this section.
