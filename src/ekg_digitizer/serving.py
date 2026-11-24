@@ -4,7 +4,8 @@
 # ==============================================================================
 """Load whichever registry version holds the ``production`` alias.
 
-Call ``load_production_model`` once when the service starts. Promoting another
+Call ``load_production_model`` once when the service starts, then pass
+``served.model`` to ``ekg_digitizer.inference.predict_image``. Promoting another
 version (``scripts/register_model.py promote ... --alias production``) changes
 the served model on the next restart, with no code change.
 
@@ -18,10 +19,13 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+import torch
 import wandb
 from torch import nn
 
-from ekg_digitizer.models.weights import WEIGHTS_FILE, load_weights
+from ekg_digitizer.config import Config
+from ekg_digitizer.inference import default_device, load_model
+from ekg_digitizer.models.weights import WEIGHTS_FILE
 from ekg_digitizer.registry import REGISTRY_PATH
 
 SERVED_ALIAS = "production"
@@ -71,7 +75,17 @@ def fetch_production_weights(api: wandb.Api | None = None) -> tuple[str, Path]:
     return version, weights_path
 
 
-def load_production_model(model: nn.Module, api: wandb.Api | None = None) -> ServedModel:
-    """Load the production weights into ``model`` (built from the config) for serving."""
+def load_production_model(
+    config: Config,
+    device: str | torch.device | None = None,
+    api: wandb.Api | None = None,
+) -> ServedModel:
+    """Load the production model, ready for ``inference.predict_image``.
+
+    Uses the same loader as the inference pipeline (#33), so the served model is
+    built, placed on ``device`` and set to eval mode exactly as in offline inference.
+    ``config`` must match the one the production model was trained with.
+    """
     version, weights_path = fetch_production_weights(api)
-    return ServedModel(model=load_weights(model, weights_path), version=version, weights_path=weights_path)
+    model = load_model(weights_path, config, device or default_device())
+    return ServedModel(model=model, version=version, weights_path=weights_path)
