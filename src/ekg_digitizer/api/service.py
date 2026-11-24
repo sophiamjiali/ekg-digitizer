@@ -46,11 +46,12 @@ def decode_image(data: bytes, max_pixels: int) -> np.ndarray:
     # Cheap header-only check would be ideal; imdecode needs the full decode, so the
     # upload size cap (enforced by the caller) is the first line of defence and the
     # pixel cap below guards the downstream tensor allocations.
-    img = cv2.imdecode(np.frombuffer(data, dtype=np.uint8), cv2.IMREAD_COLOR_RGB)
+    img = cv2.imdecode(np.frombuffer(data, dtype=np.uint8), cv2.IMREAD_COLOR)
     if img is None:
         raise InvalidImageError("Could not decode image; the file may be corrupt")
     if img.shape[0] * img.shape[1] > max_pixels:
         raise InvalidImageError(f"Image exceeds the {max_pixels:,} pixel limit")
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     return img
 
 

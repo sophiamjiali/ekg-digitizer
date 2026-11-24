@@ -3,138 +3,365 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>EKG Digitizer</title>
+<title>EKGram</title>
 <style>
-  :root { color-scheme: light dark; --line: #2a6fdb; --muted: #6b7280; --border: #d1d5db; }
-  body { font: 16px/1.5 system-ui, sans-serif; max-width: 960px; margin: 2rem auto; padding: 0 1rem; }
-  h1 { font-size: 1.5rem; margin-bottom: .25rem; }
-  .muted { color: var(--muted); }
-  form { display: flex; gap: .75rem; flex-wrap: wrap; align-items: center; margin: 1.25rem 0; }
-  button { padding: .5rem 1rem; border: 1px solid var(--border); border-radius: 6px; cursor: pointer; font: inherit; }
-  button:disabled { opacity: .5; cursor: not-allowed; }
-  #status { min-height: 1.5rem; }
-  #status.error { color: #dc2626; }
-  #preview { max-width: 100%; border: 1px solid var(--border); border-radius: 6px; display: none; margin-bottom: 1rem; }
-  #plots { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: .75rem; }
-  .lead { border: 1px solid var(--border); border-radius: 6px; padding: .25rem .5rem; }
-  .lead h2 { font-size: .85rem; margin: 0; }
-  canvas { width: 100%; height: 90px; display: block; }
+  :root {
+    color-scheme: dark;
+    --background: #171a1d;
+    --surface: #202428;
+    --surface-raised: #262b30;
+    --border: #363d43;
+    --text: #f1f5f3;
+    --muted: #9ca8a3;
+    --accent: #65d9a5;
+    --accent-dark: #102a20;
+    --error: #ff8e8e;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--background);
+    color: var(--text);
+    font: 16px/1.5 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+  main { width: min(1120px, calc(100% - 2rem)); margin: 0 auto; padding: 3rem 0; }
+  header { margin-bottom: 2rem; }
+  .brand { display: flex; align-items: center; gap: .9rem; }
+  h1 { margin: 0; font-size: clamp(2rem, 5vw, 3rem); letter-spacing: -.04em; }
+  .pulse { width: 94px; height: 34px; color: var(--accent); overflow: visible; }
+  .pulse-line { opacity: .28; }
+  .pulse-active {
+    stroke-dasharray: 18 82;
+    stroke-dashoffset: 18;
+    filter: drop-shadow(0 0 2px var(--accent)) drop-shadow(0 0 4px rgb(101 217 165 / 60%));
+    animation: illuminate-pulse 5s linear infinite;
+  }
+  .travel-dot {
+    offset-path: path("M1 18h22l6-9 8 18 9-25 9 31 7-15h31");
+    offset-distance: 0%;
+    filter: drop-shadow(0 0 2px var(--accent)) drop-shadow(0 0 5px var(--accent));
+    animation: travel-pulse 5s linear infinite;
+  }
+  @keyframes illuminate-pulse { to { stroke-dashoffset: -82; } }
+  @keyframes travel-pulse { to { offset-distance: 100%; } }
+  .instruction { margin: .75rem 0 .15rem; color: #d7dedb; }
+  .disclaimer { margin: 0; color: var(--muted); font-size: .85rem; }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 1.25rem;
+  }
+  form { display: grid; gap: 1rem; }
+  .upload {
+    display: grid;
+    place-items: center;
+    gap: .4rem;
+    min-height: 150px;
+    padding: 1.25rem;
+    border: 1px dashed #56615c;
+    border-radius: 10px;
+    background: var(--surface-raised);
+    cursor: pointer;
+    text-align: center;
+    transition: border-color .15s, background .15s;
+  }
+  .upload:hover, .upload:focus-within { border-color: var(--accent); background: #29312e; }
+  .upload.selected { border-style: solid; border-color: var(--accent); background: var(--accent-dark); }
+  .upload strong { color: var(--accent); }
+  .upload small { color: var(--muted); }
+  .selected-mark {
+    display: none;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: var(--accent-dark);
+    font-weight: 800;
+    line-height: 24px;
+  }
+  .upload.selected .selected-mark { display: block; }
+  .change { display: none; color: var(--accent); font-size: .8rem; text-decoration: underline; text-underline-offset: 3px; }
+  .upload.selected .change { display: inline; }
+  #file { position: absolute; width: 1px; height: 1px; opacity: 0; }
+  #filename { color: var(--text); overflow-wrap: anywhere; }
+  .actions { display: flex; flex-wrap: wrap; gap: .75rem; }
+  button {
+    min-height: 42px;
+    padding: .55rem 1.1rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface-raised);
+    color: var(--text);
+    cursor: pointer;
+    font: 600 .95rem/1 system-ui, sans-serif;
+    transition: border-color .15s, transform .15s, opacity .15s;
+  }
+  button:hover:not(:disabled) { border-color: var(--accent); transform: translateY(-1px); }
+  button:focus-visible, .upload:has(#file:focus-visible) { outline: 2px solid var(--accent); outline-offset: 3px; }
+  button.primary { border-color: var(--accent); background: var(--accent); color: #102019; }
+  button:disabled { opacity: .4; cursor: not-allowed; }
+  #status { min-height: 1.5rem; margin: .75rem 0 0; color: var(--muted); }
+  #status.loading { color: var(--accent); }
+  #status.error { color: var(--error); }
+  #results { margin-top: 2rem; }
+  #results[hidden] { display: none; }
+  .results-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; }
+  .results-actions { display: flex; flex-wrap: wrap; gap: .75rem; margin-top: 1rem; }
+  h2 { margin: 0; font-size: 1.25rem; }
+  #metadata { display: flex; flex-wrap: wrap; gap: .5rem; }
+  .meta {
+    padding: .35rem .7rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--muted);
+    font-size: .82rem;
+  }
+  .meta strong { color: var(--text); }
+  #plots { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: .75rem; }
+  .lead { min-width: 0; padding: .65rem .75rem; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+  .lead h3 { margin: 0 0 .25rem; font-size: .85rem; font-weight: 650; }
+  .lead h3 span { float: right; color: var(--muted); font-weight: 400; }
+  canvas { display: block; width: 100%; height: 112px; border-radius: 5px; background: #1b1f22; }
+  @media (max-width: 600px) {
+    main { padding: 2rem 0; }
+    .results-header { align-items: flex-start; flex-direction: column; }
+    .actions button { flex: 1; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .pulse-active { display: none; }
+    .travel-dot { animation: none; }
+  }
 </style>
 </head>
 <body>
-  <h1>EKG Digitizer</h1>
-  <p class="muted">Upload a PNG or JPEG image of an EKG record to extract its 12-lead signals.
-     Research use only, not for clinical decisions.</p>
+<main>
+  <!-- EKG Digitizer web interface -->
+  <header>
+    <div class="brand">
+      <h1>EKGram</h1>
+      <svg class="pulse" viewBox="0 0 94 34" role="img" aria-label="EKG waveform">
+        <path class="pulse-line" d="M1 18h22l6-9 8 18 9-25 9 31 7-15h31" pathLength="100" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <path class="pulse-active" d="M1 18h22l6-9 8 18 9-25 9 31 7-15h31" pathLength="100" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle class="travel-dot" cx="0" cy="0" r="2.5" fill="currentColor"/>
+      </svg>
+    </div>
+    <p class="instruction">Upload a PNG or JPEG image of an EKG record to extract its 12-lead signals.</p>
+    <p class="disclaimer">For research use only.</p>
+  </header>
 
-  <form id="form">
-    <input id="file" type="file" accept="image/png,image/jpeg" required>
-    <button id="submit" type="submit">Digitize</button>
-    <button id="download" type="button" disabled>Download CSV</button>
-  </form>
+  <section id="upload-section" class="card" aria-label="Upload EKG image">
+    <form id="form">
+      <label id="upload" class="upload" for="file">
+        <input id="file" type="file" accept="image/png,image/jpeg" required>
+        <span class="selected-mark" aria-hidden="true">✓</span>
+        <strong id="upload-title">Choose an EKG image</strong>
+        <span id="filename">No file selected</span>
+        <small id="upload-hint">PNG or JPEG</small>
+        <span class="change">Change image</span>
+      </label>
+      <div class="actions">
+        <button id="submit" class="primary" type="submit" disabled>Digitize</button>
+      </div>
+    </form>
+  </section>
 
+  <section id="results" aria-labelledby="results-title" hidden>
+    <div class="results-header">
+      <h2 id="results-title">Digitized leads</h2>
+      <div id="metadata"></div>
+    </div>
+    <div id="plots"></div>
+    <div class="results-actions">
+      <button id="download" class="primary" type="button">Download CSV</button>
+      <button id="another" type="button">Digitize another image</button>
+    </div>
+  </section>
   <div id="status" role="status" aria-live="polite"></div>
-  <img id="preview" alt="Uploaded EKG">
-  <div id="plots"></div>
+</main>
 
 <script>
 const form = document.getElementById("form");
 const fileInput = document.getElementById("file");
+const uploadSection = document.getElementById("upload-section");
+const upload = document.getElementById("upload");
+const uploadTitle = document.getElementById("upload-title");
+const uploadHint = document.getElementById("upload-hint");
+const filename = document.getElementById("filename");
 const statusEl = document.getElementById("status");
-const preview = document.getElementById("preview");
+const results = document.getElementById("results");
+const metadata = document.getElementById("metadata");
 const plots = document.getElementById("plots");
 const submit = document.getElementById("submit");
 const download = document.getElementById("download");
-const MAX_BYTES = 10 * 1024 * 1024;
-let result = null;
+const another = document.getElementById("another");
+const LEADS = ["I", "II", "III", "aVR", "aVL", "aVF", "V1", "V2", "V3", "V4", "V5", "V6"];
+let hasResult = false;
 
-function setStatus(text, isError = false) {
+function setStatus(text, kind = "") {
   statusEl.textContent = text;
-  statusEl.className = isError ? "error" : "";
+  statusEl.className = kind;
+}
+
+function errorMessage(error, fallback) {
+  return typeof error.detail === "string" ? error.detail : fallback;
 }
 
 fileInput.addEventListener("change", () => {
-  const f = fileInput.files[0];
-  result = null; download.disabled = true; plots.replaceChildren();
-  if (!f) { preview.style.display = "none"; return; }
-  preview.src = URL.createObjectURL(f);
-  preview.style.display = "block";
-  setStatus(f.size > MAX_BYTES ? "File is larger than 10 MB." : "", f.size > MAX_BYTES);
+  const file = fileInput.files[0];
+  const isImage = file && (file.type === "image/png" || file.type === "image/jpeg");
+  if (file && !isImage) {
+    fileInput.value = "";
+    setStatus("Please choose a PNG or JPEG image.", "error");
+  } else {
+    setStatus("");
+  }
+  upload.classList.toggle("selected", Boolean(isImage));
+  uploadTitle.textContent = isImage ? "Image selected" : "Choose an EKG image";
+  uploadHint.textContent = isImage ? "Ready to digitize" : "PNG or JPEG";
+  filename.textContent = isImage ? file.name : "No file selected";
+  hasResult = false;
+  submit.disabled = !isImage;
+  results.hidden = true;
+  plots.replaceChildren();
+  metadata.replaceChildren();
 });
 
-form.addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const f = fileInput.files[0];
-  if (!f || f.size > MAX_BYTES) return;
+form.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const file = fileInput.files[0];
+  if (!file) return;
 
-  submit.disabled = true; download.disabled = true; plots.replaceChildren();
-  setStatus("Digitizing…");
+  submit.disabled = true;
+  results.hidden = true;
+  setStatus("Digitizing EKG…", "loading");
   try {
     const body = new FormData();
-    body.append("file", f);
-    const res = await fetch("/api/v1/digitize", { method: "POST", body });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(typeof err.detail === "string" ? err.detail : `Request failed (${res.status})`);
+    body.append("file", file);
+    const response = await fetch("/api/v1/digitize", { method: "POST", body });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(errorMessage(error, `Digitization failed (${response.status}).`));
     }
-    result = await res.json();
-    render(result);
-    download.disabled = false;
-    setStatus(`Done. Model ${result.model_version}, ${result.fs} Hz.`);
-  } catch (err) {
-    setStatus(err.message, true);
+    const data = await response.json();
+    render(data);
+    hasResult = true;
+    uploadSection.hidden = true;
+    setStatus("Digitization complete.");
+  } catch (error) {
+    hasResult = false;
+    setStatus(error.message || "Digitization failed.", "error");
   } finally {
     submit.disabled = false;
   }
 });
 
 function render(data) {
-  for (const [name, lead] of Object.entries(data.leads)) {
-    const box = document.createElement("div");
-    box.className = "lead";
-    const title = document.createElement("h2");
-    title.textContent = `${name} (${lead.duration_s.toFixed(1)} s)`;
+  plots.replaceChildren();
+  metadata.replaceChildren();
+  const rate = document.createElement("span");
+  rate.className = "meta";
+  rate.innerHTML = `Sampling rate <strong>${data.fs} Hz</strong>`;
+  metadata.append(rate);
+  results.hidden = false;
+
+  for (const name of LEADS) {
+    const lead = data.leads[name];
+    if (!lead) continue;
+    const card = document.createElement("article");
+    card.className = "lead";
+    const title = document.createElement("h3");
+    title.append(name);
+    const detail = document.createElement("span");
+    detail.textContent = `${lead.duration_s.toFixed(1)} s · ${lead.n_samples} samples`;
+    title.append(detail);
     const canvas = document.createElement("canvas");
-    box.append(title, canvas);
-    plots.append(box);
+    card.append(title, canvas);
+    plots.append(card);
     drawLead(canvas, lead.values);
   }
 }
 
+another.addEventListener("click", () => {
+  fileInput.value = "";
+  hasResult = false;
+  upload.classList.remove("selected");
+  uploadTitle.textContent = "Choose an EKG image";
+  uploadHint.textContent = "PNG or JPEG";
+  filename.textContent = "No file selected";
+  submit.disabled = true;
+  results.hidden = true;
+  uploadSection.hidden = false;
+  plots.replaceChildren();
+  metadata.replaceChildren();
+  setStatus("");
+});
+
 function drawLead(canvas, values) {
   const dpr = window.devicePixelRatio || 1;
-  const w = canvas.clientWidth, h = canvas.clientHeight;
-  canvas.width = w * dpr; canvas.height = h * dpr;
-  const ctx = canvas.getContext("2d");
-  ctx.scale(dpr, dpr);
-  let min = Infinity, max = -Infinity;
-  for (const v of values) { if (v < min) min = v; if (v > max) max = v; }
-  const span = max - min || 1;
-  ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue("--line");
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  values.forEach((v, i) => {
-    const x = (i / (values.length - 1)) * w;
-    const y = h - 4 - ((v - min) / span) * (h - 8);
-    i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+  const width = canvas.clientWidth;
+  const height = canvas.clientHeight;
+  canvas.width = width * dpr;
+  canvas.height = height * dpr;
+  const context = canvas.getContext("2d");
+  context.scale(dpr, dpr);
+  const sorted = values.filter(Number.isFinite).sort((a, b) => a - b);
+  if (!sorted.length) return;
+  const percentile = (fraction) => {
+    const position = (sorted.length - 1) * fraction;
+    const lower = Math.floor(position);
+    const weight = position - lower;
+    return sorted[lower] + (sorted[Math.min(lower + 1, sorted.length - 1)] - sorted[lower]) * weight;
+  };
+  const lower = percentile(.01);
+  const upper = percentile(.99);
+  const reference = Math.max(Math.abs(lower), Math.abs(upper), 1);
+  const minimumRange = Math.max(reference * Number.EPSILON * 100, 1e-12);
+  const range = Math.max(upper - lower, minimumRange);
+  const center = (lower + upper) / 2;
+  const padding = range * .08;
+  const yMin = center - range / 2 - padding;
+  const yMax = center + range / 2 + padding;
+  const yRange = yMax - yMin;
+  context.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue("--accent");
+  context.lineWidth = 1.5;
+  context.beginPath();
+  values.forEach((value, index) => {
+    const x = values.length > 1 ? (index / (values.length - 1)) * width : 0;
+    if (!Number.isFinite(value)) return;
+    const y = height - ((value - yMin) / yRange) * height;
+    if (index) context.lineTo(x, y); else context.moveTo(x, y);
   });
-  ctx.stroke();
+  context.stroke();
 }
 
-download.addEventListener("click", () => {
-  if (!result) return;
-  const names = Object.keys(result.leads);
-  const rows = Math.max(...names.map((n) => result.leads[n].n_samples));
-  const lines = [names.join(",")];
-  for (let i = 0; i < rows; i++) {
-    lines.push(names.map((n) => {
-      const v = result.leads[n].values[i];
-      return v === undefined ? "" : v.toFixed(6);
-    }).join(","));
+download.addEventListener("click", async () => {
+  const file = fileInput.files[0];
+  if (!file || !hasResult) return;
+
+  download.disabled = true;
+  setStatus("Preparing CSV…", "loading");
+  try {
+    const body = new FormData();
+    body.append("file", file);
+    const response = await fetch("/api/v1/digitize?format=csv", { method: "POST", body });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(errorMessage(error, `CSV download failed (${response.status}).`));
+    }
+    const url = URL.createObjectURL(await response.blob());
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "ekg_signals.csv";
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 0);
+    setStatus("CSV downloaded.");
+  } catch (error) {
+    setStatus(error.message || "CSV download failed.", "error");
+  } finally {
+    download.disabled = false;
   }
-  const url = URL.createObjectURL(new Blob([lines.join("\n")], { type: "text/csv" }));
-  const a = Object.assign(document.createElement("a"), { href: url, download: "ekg_signals.csv" });
-  a.click();
-  URL.revokeObjectURL(url);
 });
 </script>
 </body>

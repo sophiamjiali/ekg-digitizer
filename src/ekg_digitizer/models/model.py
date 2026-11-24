@@ -301,8 +301,7 @@ class AdvancedTCN(nn.Module):
 
     def forward(self, x):
 
-        # x: (batch, features)
-        x = x.unsqueeze(-1)
+        # x: (batch, features, horizontal positions)
 
         x = F.interpolate(
             x,
@@ -397,13 +396,6 @@ class EnhancedEKGNet(nn.Module):
             512
         )
 
-        # Global pooling
-        self.global_pool = (
-            nn.AdaptiveAvgPool2d(
-                (1, 1)
-            )
-        )
-
         self.dropout = nn.Dropout(
             0.4
         )
@@ -492,12 +484,8 @@ class EnhancedEKGNet(nn.Module):
 
         x = self.fusion(x)
 
-        features = self.global_pool(x)
-
-        features = features.view(
-            features.size(0),
-            -1
-        )
+        # Average over image height while preserving left-to-right ordering.
+        features = x.mean(dim=2)
 
         features = self.dropout(
             features
