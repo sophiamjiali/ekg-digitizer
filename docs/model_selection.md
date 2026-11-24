@@ -8,14 +8,14 @@ Records which model is deployed and why. Update this file each time a new model 
 
    ```bash
    PYTHONPATH=src python scripts/inference.py --checkpoint <run_id>/best_model.pth \
-       --image-dir data/test/images --split-csv data/test.csv --out-dir outputs/test/<run_id>
+       --image-dir data/test --split-csv data/test.csv --out-dir outputs/test/<run_id>
    ```
 
    Use the config the candidate was trained with (`--config`); otherwise the model won't load.
 2. Score and register the best one (see `scripts/select_model.py`):
 
    ```bash
-   PYTHONPATH=src python scripts/select_model.py --ref-dir data/test/signals \
+   PYTHONPATH=src python scripts/select_model.py --ref-dir data/test \
        --candidate <entity>/<project>/<run_id>=outputs/test/<run_id> --alias staging
    ```
 
