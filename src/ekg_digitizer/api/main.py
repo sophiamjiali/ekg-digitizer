@@ -42,7 +42,6 @@ from ekg_digitizer.api.settings import Settings
 from ekg_digitizer.config import load_config
 from ekg_digitizer.evaluation.metrics import LEADS
 from ekg_digitizer.inference import default_device, load_model
-from ekg_digitizer.models.model import EnhancedEKGNet
 from ekg_digitizer.serving import load_production_model
 
 logger = logging.getLogger("ekg_digitizer.api")
@@ -57,7 +56,8 @@ def build_digitizer(settings: Settings) -> Digitizer:
     if settings.checkpoint:
         model, version = load_model(settings.checkpoint, config, device), f"local:{settings.checkpoint.name}"
     else:
-        served = load_production_model(EnhancedEKGNet(config))
+        # load_production_model takes the config and builds the model itself
+        served = load_production_model(config, device)
         model, version = served.model.to(device), served.version
 
     logger.info("Loaded model %s on %s", version, device)
