@@ -3,6 +3,19 @@
 # Purpose   : Helper functions for entry point inference script
 # ==============================================================================
 
+"""
+To test:
+python3 scripts/inference.py \
+--checkpoint best_model_weights.pth \
+--image-dir data/train \
+--split-csv data/train.csv \
+--out-dir outputs/test_run
+
+python3 scripts/evaluate.py \
+--ref-dir data/train \
+--pred-dir outputs/test_run
+"""
+
 from __future__ import annotations
 
 import re
