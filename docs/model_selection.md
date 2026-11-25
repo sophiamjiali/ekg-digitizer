@@ -29,28 +29,32 @@ SNR is the primary metric and MAE breaks ties (see [metrics.md](metrics.md)). Te
 
 ## Current selection
 
-The team's only trained checkpoint (`best_model.pth`, trained with `configs/config.yaml` on `main`).
+The retrained checkpoint, after the decoder fix in `3c645ac` (the model keeps the image's horizontal axis instead of pooling it to a single vector). Trained with `configs/config.yaml` on `main`.
 
 | Field | Value |
 |---|---|
-| Registry version | `wandb-registry-model/ekg-digitizer:v0` (`v1` holds the same weights, added for the rollback test) |
-| Alias | `production` is on `v1` for the rollback test; `v0` and `v1` serve identical predictions |
-| W&B run | `stanleycao23-university-of-toronto/ekg-digitizer/7wv7g4ia` (`v1`: `.../itiu5j1q`) |
-| Evaluated on | 2026-11-23, 8 training records (`tests/fixtures/regression_ids.txt`), **not** a held-out test split |
+| Registry version | `wandb-registry-model/ekg-digitizer:v2` |
+| Alias | `production` and `staging` are on `v2`; `v0`/`v1` (pre-fix model) have no aliases and remain available for rollback |
+| W&B run | `stanleycao23-university-of-toronto/ekg-digitizer/q46r3hgv` |
+| Deployed | Cloud Run release `v0.1.3` (the first release that includes the model fix; older releases can't run `v2` correctly) |
+| Evaluated on | 2026-11-25, 8 training records (`tests/fixtures/regression_ids.txt`), **not** a held-out test split |
 
 ### Candidates
 
-| Run | SNR (dB) | MAE (mV) | Notes (key config differences) |
-|---|---|---|---|
-| `7wv7g4ia` | 0.119 | 0.0873 | Only candidate; default config, TTA on. Scores are on 8 training records |
+| Version | Run | SNR (dB) | MAE (mV) | Notes |
+|---|---|---|---|---|
+| `v2` | `q46r3hgv` | **1.592** | **0.0764** | Retrained after the decoder fix; epoch 45, training loss 0.128 |
+| `v0` / `v1` | `7wv7g4ia` / `itiu5j1q` | 0.119 | 0.0873 | Pre-fix model; outputs a near-flat line for every lead |
+
+All scores are on the same 8 training records, default config, TTA on.
 
 ### Rationale
 
-- It is the only trained model, so there was nothing to compare against.
-- Registered and promoted so the serving path (registry -> Cloud Run) works end to end. Scores are stored in the registry metadata as `train_subset_snr` / `train_subset_mae`, not `test_metrics`, because the records were seen in training.
-- 0.12 dB SNR is close to a flat-line prediction, so treat this as a placeholder rather than a model fit for use.
+- `v2` beats the previous model on both metrics (SNR +1.47 dB, MAE −12%) and produces waveforms that follow the reference, where `v0`/`v1` produced a flat line.
+- Scores are stored in the registry metadata as `train_subset_snr` / `train_subset_mae`, not `test_metrics`, because the records were seen in training.
 
-### Still to do
+### Exception: no held-out test evaluation
 
-- Evaluate on a held-out test split (`data/test`, see Process above) once one exists, and store the result as `test_metrics`.
-- Retrain or compare further candidates if the test SNR confirms the low score, then update this section.
+The acceptance criterion "evaluated once on the held-out test split" is waived for this selection, by team decision. No held-out split with reference signals exists, so the 8-record training subset is the only evaluation available. The scores above therefore overstate how well the model generalizes.
+
+If a held-out split becomes available, evaluate `v2` on it once (see Process above), store the result as `test_metrics`, and update this section.
